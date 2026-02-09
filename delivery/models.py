@@ -36,7 +36,7 @@ class Payment(models.Model):
         MOBILE_MONEY = "mobile_money"
 
     order_id = models.OneToOneField(Order,on_delete=models.CASCADE,related_name="payment")
-    amount = models.FloatField(max_digits=10, default=0.0)
+    amount = models.FloatField(default=0.0)
     payment_method = models.CharField(max_length=20, choices=Method.choices)
     transaction_reference = models.CharField(max_length=150, blank=True)
     paid_at = models.DateField(null=True,blank=True)
