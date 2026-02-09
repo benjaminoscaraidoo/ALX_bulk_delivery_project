@@ -3,14 +3,20 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-
-from .models import Delivery
+from customer.permissions import (
+    IsDriver,
+    IsAssignedDriverOrAdmin
+)
+from .models import Delivery,Payment
 from .serializers import DeliverySerializer,PaymentSerializer
 
 # Create your views here.
 class DeliveryViewSet(viewsets.ModelViewSet):
     serializer_class = DeliverySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        permissions.IsAuthenticated,
+        IsAssignedDriverOrAdmin,
+    ]
 
     def get_queryset(self):
         user = self.request.user

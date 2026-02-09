@@ -2,12 +2,21 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions
 from .models import Order, Package
 from .serializers import OrderSerializer, PackageSerializer
-
+from rest_framework.permissions import IsAuthenticated
+from customer.permissions import (
+    IsCustomer,
+    IsOrderOwnerOrAdmin,
+    IsAdmin
+)
 
 # Create your views here.
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        IsCustomer | IsAdmin,
+        IsOrderOwnerOrAdmin,
+    ]
 
     def get_queryset(self):
         user = self.request.user
