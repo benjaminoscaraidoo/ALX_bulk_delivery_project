@@ -25,7 +25,7 @@ class Delivery(models.Model):
     
 
 
-class payment(models.Model):
+class Payment(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending"
         PAID = "paid"
