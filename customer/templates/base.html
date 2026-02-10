@@ -4,14 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Bulk Delivery Services{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 </head>
 <body>
     <header>
         <nav>
             <ul>
-                <li><a href="{% url 'home' %}">Home</a></li>
-                <li><a href="{% url 'posts' %}">Blog Posts</a></li>
+                <li><a href="{% url 'customer:home' %}">Home</a></li>
                 {% if user.is_authenticated %}
                     <li class="nav-item"><a class="nav-link" href="#">Orders</a></li>
                     <li class="nav-item dropdown">
@@ -19,10 +17,7 @@
                             Hi, {{ CustomerProfile.customer_name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{% url 'account_logout' %}">Logout</a></li>
-                        </ul>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{% url 'profile' %}">Profile</a></li>
+                            <li><a class="dropdown-item" href="{% url 'customer:logout' %}">Logout</a></li>
                         </ul>
                     </li>
                 {% else %}
@@ -42,9 +37,9 @@
     </div>
 
     <footer>
-        <p>&copy; 2024 Django Blog</p>
+        <p>&copy; 2026 Bulk Delivery Services</p>
     </footer>
 
-    <script src="{% static 'js/scripts.js' %}"></script>
+
 </body>
 </html>

@@ -106,6 +106,11 @@ LOGIN_REDIRECT_URL = '/'
 # Redirect to home page after logout
 LOGOUT_REDIRECT_URL = '/'
 
+
+#LOGIN_URL = "/login/"
+#LOGIN_REDIRECT_URL = "/home/"
+#LOGOUT_REDIRECT_URL = "/login/"
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 

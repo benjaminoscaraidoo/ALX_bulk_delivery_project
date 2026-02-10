@@ -3,6 +3,7 @@ from phonenumber_field.modelfields import PhoneNumberField
 from django.contrib.auth.models import User, AbstractUser,BaseUserManager,PermissionsMixin
 from django.conf import settings
 from django.utils import timezone
+import uuid
 
 # Create your models here.
 
@@ -11,6 +12,11 @@ class CustomUserManager(BaseUserManager):
     def create_user(self,email,phone_number,password=None, **extra_fields):
         if not email:
             raise ValueError("The Email must be set")
+        
+
+        # Auto-generate username if not provided
+        if not extra_fields.get("username"):
+            extra_fields["username"] = f"user_{str(uuid.uuid4())[:8]}"
 
         email = self.normalize_email(email)
 
@@ -39,6 +45,7 @@ class CustomUser(AbstractUser, PermissionsMixin):
         DRIVER = "driver", "Driver"
         ADMIN = "admin", "Admin"
 
+    username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices)
@@ -54,9 +61,6 @@ class CustomUser(AbstractUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
-
-
-
 
 
 class CustomerProfile(models.Model):

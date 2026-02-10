@@ -1,0 +1,17 @@
+<h2>Register</h2>
+
+<form method="post">
+  {% csrf_token %}
+  <input name="email" placeholder="Email" required />
+  <input name="phone_number" placeholder="Phone Number" required />
+  <input name="password" type="password" placeholder="Password" required />
+
+  <select name="role">
+    <option value="customer">Customer</option>
+    <option value="driver">Driver</option>
+  </select>
+
+  <button type="submit">Register</button>
+</form>
+
+<a href="{% url 'customer:login' %}">Login</a>

@@ -1,9 +1,11 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from rest_framework import viewsets, permissions
 from .models import CustomerProfile, DriverProfile
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth import authenticate, login,logout
 from django.views import View
+from django.contrib import messages
 from .serializers import (CustomerProfileSerializer,DriverProfileSerializer)
+from customer.models import CustomUser
 # Create your views here.
 
 class CustomerProfileViewSet(viewsets.ModelViewSet):
@@ -41,3 +43,48 @@ class Index(View):
 class About(View):
     def get(self, request, *args, **kwargs):
         return render(request, 'customer/about.html')
+    
+
+def register_view(request):
+    if request.method == "POST":
+        email = request.POST.get("email")
+        phone = request.POST.get("phone_number")
+        password = request.POST.get("password")
+        role = request.POST.get("role", "customer")
+
+        if CustomUser.objects.filter(email=email).exists():
+            messages.error(request, "Email already exists")
+            return redirect("core:register")
+
+        user = CustomUser.objects.create_user(
+            email=email,
+            phone_number=phone,
+            password=password,
+            role=role,
+        )
+
+        login(request, user)
+        return redirect("customer:home")
+
+    return render(request, "auth/register.html")
+
+def login_view(request):
+    if request.method == "POST":
+        email = request.POST.get("email")
+        password = request.POST.get("password")
+
+        user = authenticate(request, email=email, password=password)
+
+        if user is not None:
+            login(request, user)
+            return redirect("core:home")
+
+        messages.error(request, "Invalid login credentials")
+        return redirect("core:login")
+
+    return render(request, "auth/login.html")
+
+
+def logout_view(request):
+    logout(request)
+    return redirect("customer:login")
