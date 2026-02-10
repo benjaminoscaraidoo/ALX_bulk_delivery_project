@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
 from .models import CustomerProfile, DriverProfile
+from django.views import View
 from .serializers import (CustomerProfileSerializer,DriverProfileSerializer)
 # Create your views here.
 
@@ -18,3 +19,15 @@ class DriverProfileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return DriverProfile.objects.filter(user=self.request.user)
+    
+
+def home(request):
+    return render(request, 'customer/home.html',{})
+
+class Index(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'customer/index.html')
+    
+class About(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'customer/about.html')
