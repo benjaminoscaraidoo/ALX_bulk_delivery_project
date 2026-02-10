@@ -1,0 +1,27 @@
+<h2>Update Your Profile</h2>
+<form method="post">
+    {% csrf_token %}
+
+    {% if request.user.role == "customer" %}
+        <label>Name:</label>
+        <input type="text" name="customer_name" value="{{ profile.customer_name }}" required><br>
+
+        <label>Address:</label>
+        <input type="text" name="address" value="{{ profile.address }}" required><br>
+
+    {% elif request.user.role == "driver" %}
+        <label>Vehicle Type:</label>
+        <input type="text" name="vehicle_type" value="{{ profile.vehicle_type }}"><br>
+
+        <label>Vehicle Number:</label>
+        <input type="text" name="vehicle_number" value="{{ profile.vehicle_number }}"><br>
+
+        <label>License Number:</label>
+        <input type="text" name="license_number" value="{{ profile.license_number }}"><br>
+
+        <label>Phone:</label>
+        <input type="text" name="phone" value="{{ profile.phone }}"><br>
+    {% endif %}
+
+    <button type="submit">Save</button>
+</form>

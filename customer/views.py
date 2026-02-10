@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from rest_framework import viewsets, permissions
 from .models import CustomerProfile, DriverProfile
 from django.contrib.auth import authenticate, login,logout
+from django.contrib.auth.decorators import login_required
 from django.views import View
 from django.contrib import messages
 from .serializers import (CustomerProfileSerializer,DriverProfileSerializer)
@@ -54,7 +55,7 @@ def register_view(request):
 
         if CustomUser.objects.filter(email=email).exists():
             messages.error(request, "Email already exists")
-            return redirect("core:register")
+            return redirect("customer:register")
 
         user = CustomUser.objects.create_user(
             email=email,
@@ -64,7 +65,7 @@ def register_view(request):
         )
 
         login(request, user)
-        return redirect("customer:home")
+        return redirect("customer:update_profile")
 
     return render(request, "auth/register.html")
 
@@ -77,7 +78,7 @@ def login_view(request):
 
         if user is not None:
             login(request, user)
-            return redirect("core:home")
+            return redirect("customer:home")
 
         messages.error(request, "Invalid login credentials")
         return redirect("core:login")
@@ -88,3 +89,31 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect("customer:login")
+
+
+@login_required
+def update_profile(request):
+    user = request.user
+
+    if user.role == user.Role.CUSTOMER:
+        profile = user.customer_profile
+    elif user.role == user.Role.DRIVER:
+        profile = user.driverprofile
+    else:
+        messages.error(request, "Admin does not have a profile to update.")
+        return redirect("customer:home")
+
+    if request.method == "POST":
+        if user.role == user.Role.CUSTOMER:
+            profile.customer_name = request.POST.get("customer_name")
+            profile.address = request.POST.get("address")
+        elif user.role == user.Role.DRIVER:
+            profile.vehicle_type = request.POST.get("vehicle_type")
+            profile.vehicle_number = request.POST.get("vehicle_number")
+            profile.license_number = request.POST.get("license_number")
+            profile.phone = request.POST.get("phone")
+        profile.save()
+        messages.success(request, "Successfully Profile updated !")
+        return redirect("customer:home")
+
+    return render(request, "customer/update_profile.html", {"profile": profile})
