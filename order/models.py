@@ -15,7 +15,7 @@ class Order(models.Model):
     customer_id = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name="orders")
     delivery_date = models.DateField(blank=True)
     pickup_address = models.CharField(max_length=350, blank=True) 
-    total_price = models.FloatField(default=0)
+    total_price = models.FloatField(default=0.0)
     order_status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateField(default=datetime.datetime.today)
 

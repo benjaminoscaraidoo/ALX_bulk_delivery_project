@@ -90,10 +90,10 @@ SECURE_BROWSER_XSS_FILTER = True
 
 X_FRAME_OPTIONS = "DENY"
 
-CSRF_COOKIE_SECURE = True           # Prevents cookie theft
-SESSION_COOKIE_SECURE = True        # Forces HTTPS for session cookies
+CSRF_COOKIE_SECURE = False           # Prevents cookie theft
+SESSION_COOKIE_SECURE = False        # Forces HTTPS for session cookies
 
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = "31536000"
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True 
