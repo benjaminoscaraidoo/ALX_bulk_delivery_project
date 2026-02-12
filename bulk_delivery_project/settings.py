@@ -101,6 +101,8 @@ SECURE_HSTS_PRELOAD = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Redirect to home page after successful login
+LOGIN_URL = '/customer/login/' 
+
 LOGIN_REDIRECT_URL = '/'
 
 # Redirect to home page after logout

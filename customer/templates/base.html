@@ -10,7 +10,7 @@
         <nav>
             <ul>
                 <li><a href="{% url 'customer:home' %}">Home</a></li>
-                {% if user.is_authenticated %}
+                {% if request.user.is_authenticated %}
                     <li class="nav-item"><a class="nav-link" href="#">Orders</a></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle btn btn-outline-primary ms-lg-2 px-3" href="#" id="userDrop" data-bs-toggle="dropdown">

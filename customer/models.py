@@ -67,12 +67,8 @@ class CustomerProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="customer_profile")
     date_modified = models.DateTimeField(User, auto_now=True)
     customer_name = models.CharField(max_length=350, blank=True) 
-    address = models.CharField(max_length=350, blank=True)    
-
-
-#    def save(self, *args, **kwargs):
-#        self.email = self.user.email
-#        super().save(*args, **kwargs)
+    address = models.CharField(max_length=350, blank=True)
+    is_complete = models.BooleanField(default=False)  
 
 
     def __str__(self):
@@ -95,6 +91,7 @@ class DriverProfile(models.Model):
     license_number = models.CharField(max_length=50, blank=True) 
     phone = PhoneNumberField(unique=True, null=True, blank=True)
     availability_status = models.BooleanField(default=True)
+    is_complete = models.BooleanField(default=False)
     
 
     def __str__(self):
