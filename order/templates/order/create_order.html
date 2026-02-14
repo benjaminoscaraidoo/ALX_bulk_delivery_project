@@ -1,0 +1,21 @@
+{% extends "custotomer/base.html" %}
+{% block content %}
+
+<div class="container mt-5">
+    <h3>Create Order</h3>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label>Pickup Address</label>
+            <input type="text" name="pickup_address" class="form-control" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            Continue to Delivery/Package Details →
+        </button>
+    </form>
+</div>
+
+{% endblock %}

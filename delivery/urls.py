@@ -1,11 +1,9 @@
 from rest_framework.routers import DefaultRouter
-from .views import DeliveryViewSet,PaymentViewSet
+from .views import add_deliveries
 from django.urls import path, include
 
-#router = DefaultRouter()
-#router.register(r"deliveries", DeliveryViewSet, basename="deliveries")
-#router.register(r"payments", PaymentViewSet, basename="payments")
+app_name = "delivery"
 
 urlpatterns = [
-#path('', include(router.urls)),
+    path("add/<int:order_id>/", add_deliveries, name="add_deliveries"),
 ]

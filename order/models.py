@@ -1,6 +1,7 @@
 from django.db import models
 from customer.models import CustomerProfile,DriverProfile
 import datetime
+from phonenumber_field.modelfields import PhoneNumberField
 
 
 # Create your models here.
@@ -31,6 +32,8 @@ class Package(models.Model):
     dimensions = models.CharField(max_length=50, blank=True)  
     value = models.FloatField(default=0.0)
     fragile = models.BooleanField(default=False)
-    
+    receiver_name = models.CharField(max_length=350, blank=True)
+    receiver_phone = PhoneNumberField(null=True, blank=True)
+
     def __str__(self):
         return self.description

@@ -1,5 +1,5 @@
 from django.db import models
-from order.models import Order
+from order.models import Package
 import datetime
 
 
@@ -11,7 +11,7 @@ class Delivery(models.Model):
         PICKED_UP = "picked_up"
         DELIVERED = "delivered"
 
-    order_id =  models.ForeignKey(Order,on_delete=models.CASCADE,related_name="deliveries")
+    package_id =  models.OneToOneField(Package, default=None, on_delete=models.CASCADE,related_name="deliveries")
     assigned_at = models.DateField(auto_now_add=True)
     picked_up_at = models.DateField(null=True, blank=True)
     delivered_at = models.DateField(null=True, blank=True)
@@ -33,7 +33,7 @@ class Payment(models.Model):
         CASH = "cash"
         MOBILE_MONEY = "mobile_money"
 
-    order_id = models.OneToOneField(Order,on_delete=models.CASCADE,related_name="payment")
+    package_id = models.OneToOneField(Package, default=None, on_delete=models.CASCADE,related_name="payment")
     amount = models.FloatField(default=0.0)
     payment_method = models.CharField(max_length=20, choices=Method.choices)
     transaction_reference = models.CharField(max_length=150, blank=True)
