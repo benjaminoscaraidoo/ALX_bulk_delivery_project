@@ -9,7 +9,7 @@ class PackageInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "customer_id", "order_status", "delivery_date", "total_price", "created_at")
+    list_display = ("id", "customer_id", "driver_id", "order_status", "delivery_date", "total_price", "created_at")
     list_filter = ("order_status", "delivery_date")
     search_fields = ("id", "customer__email")
     inlines = [PackageInline]

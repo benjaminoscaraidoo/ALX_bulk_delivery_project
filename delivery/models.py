@@ -1,6 +1,5 @@
 from django.db import models
 from order.models import Order
-from customer.models import DriverProfile
 import datetime
 
 
@@ -13,7 +12,6 @@ class Delivery(models.Model):
         DELIVERED = "delivered"
 
     order_id =  models.ForeignKey(Order,on_delete=models.CASCADE,related_name="deliveries")
-    driver_id = models.ForeignKey(DriverProfile, on_delete=models.CASCADE)
     assigned_at = models.DateField(auto_now_add=True)
     picked_up_at = models.DateField(null=True, blank=True)
     delivered_at = models.DateField(null=True, blank=True)
