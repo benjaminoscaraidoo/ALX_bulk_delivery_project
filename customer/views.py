@@ -98,7 +98,7 @@ def login_view(request):
         print("Authenticated user:", user)
         if user is not None:
             login(request, user)
-
+            request.session.set_expiry(settings.AUTO_LOGOUT.get('IDLE_TIME', 10)) #session logout timer 10secs
             print("User logged in:", request.user)
             # Redirect based on role
             if user.role == user.Role.CUSTOMER:
@@ -124,6 +124,7 @@ def session_login(request):
         user = authenticate(request, email=email, password=password)
         if user:
             login(request, user)  # 🔥 CREATES DJANGO SESSION
+            request.session.set_expiry(settings.AUTO_LOGOUT.get('IDLE_TIME', 10)) #session logout timer 10secs
             return JsonResponse({"success": True})
         return JsonResponse({"success": False}, status=401)
     

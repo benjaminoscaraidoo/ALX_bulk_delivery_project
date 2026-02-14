@@ -52,6 +52,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django_auto_logout.middleware.auto_logout',
 ]
 
 ROOT_URLCONF = 'bulk_delivery_project.urls'
@@ -112,6 +113,11 @@ LOGOUT_REDIRECT_URL = '/'
 #LOGIN_URL = "/login/"
 #LOGIN_REDIRECT_URL = "/home/"
 #LOGOUT_REDIRECT_URL = "/login/"
+
+#Add Session logout time
+AUTO_LOGOUT = {'IDLE_TIME' : 15, 'REDIRECT_TO_LOGIN_IMMEDIATELY': True,  
+               'MESSAGE':'Session Expired. Please Login again.',
+               }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators

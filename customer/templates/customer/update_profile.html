@@ -1,5 +1,13 @@
 <h2>Update Your Profile</h2>
 
+{% if messages %}
+<ul>
+    {% for message in messages %}
+    <li style="color:red">{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
 <form method="post">
     {% csrf_token %}
 

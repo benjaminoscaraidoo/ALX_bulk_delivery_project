@@ -12,7 +12,7 @@ class Delivery(models.Model):
         PICKED_UP = "picked_up"
         DELIVERED = "delivered"
 
-    order_id =  models.OneToOneField(Order,on_delete=models.CASCADE,related_name="delivery")
+    order_id =  models.ForeignKey(Order,on_delete=models.CASCADE,related_name="deliveries")
     driver_id = models.ForeignKey(DriverProfile, on_delete=models.CASCADE)
     assigned_at = models.DateField(auto_now_add=True)
     picked_up_at = models.DateField(null=True, blank=True)

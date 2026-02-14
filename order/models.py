@@ -1,5 +1,5 @@
 from django.db import models
-from customer.models import CustomerProfile
+from customer.models import CustomerProfile,DriverProfile
 import datetime
 
 
@@ -14,6 +14,7 @@ class Order(models.Model):
 
     customer_id = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name="orders")
     delivery_date = models.DateField(blank=True)
+    driver_id = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, default=None)
     pickup_address = models.CharField(max_length=350, blank=True) 
     total_price = models.FloatField(default=0.0)
     order_status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
@@ -25,13 +26,11 @@ class Order(models.Model):
     
 
 class Package(models.Model):
-    order_id = models.ForeignKey(Order, on_delete=models.CASCADE)
+    order_id = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="packages")
     description = models.CharField(max_length=150, blank=True)
     dimensions = models.CharField(max_length=50, blank=True)  
     value = models.FloatField(default=0.0)
     fragile = models.BooleanField(default=False)
-
-
     
     def __str__(self):
         return self.description

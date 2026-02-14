@@ -40,6 +40,14 @@
         <p>&copy; 2026 Bulk Delivery Services</p>
     </footer>
 
-
+    {% if messages %}
+    <div class="messages">
+        <ul>
+            {% for message in messages %}
+            <li style="color:red">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 </body>
 </html>
