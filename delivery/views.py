@@ -3,13 +3,15 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from django.contrib.auth.decorators import login_required
 from rest_framework.response import Response
+from django.db import transaction
+from django.contrib import messages
 from django.utils import timezone
 from customer.permissions import (
     IsDriver,
     IsAssignedDriverOrAdmin
 )
 from .models import Delivery,Payment
-from order.models import Order
+from order.models import Order,Package
 from .serializers import DeliverySerializer,PaymentSerializer
 
 # Create your views here.
@@ -56,28 +58,53 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return Payment.objects.filter(order__customer=user)
     
     
-@login_required
+#@login_required
 def add_deliveries(request, order_id):
-    order = get_object_or_404(Order, id=order_id, user=request.user)
+
+
+    user = request.user
+
+    if not user.is_authenticated:
+        return render(request, 'home.html')
+    
+
+    order = get_object_or_404(Order, id=order_id, customer_id=request.user)
+    
 
     if request.method == "POST":
-        package_names = request.POST.getlist("package_name")
+        description = request.POST.getlist("description")
+        dimensions = request.POST.getlist("dimensions")
         receiver_names = request.POST.getlist("receiver_name")
         phones = request.POST.getlist("receiver_phone")
         addresses = request.POST.getlist("delivery_address")
         notes = request.POST.getlist("delivery_notes")
+        fragile_flags = request.POST.getlist("is_fragile")
+        value = request.POST.getlist("value")
 
-        for i in range(len(package_names)):
-            Delivery.objects.create(
-                order=order,
-                package_name=package_names[i],
-                receiver_name=receiver_names[i],
-                receiver_phone=phones[i],
-                delivery_address=addresses[i],
-                delivery_notes=notes[i],
-            )
+        if not description:
+            messages.error(request, "At least one package is required.")
+            return redirect("delivery:add_deliveries", order_id=order.id)
 
-        return redirect("order:order_detail", order_id=order.id)
+        with transaction.atomic():
+            for i in range(len(description)):
+                new_package = Package.objects.create(
+                    order_id=order,
+                    description=description[i],
+                    dimensions = dimensions[i],
+                    receiver_name=receiver_names[i],
+                    receiver_phone=phones[i],
+                    fragile=(str(i) in fragile_flags),
+                    value = value[i]
+                )
+
+                Delivery.objects.create(
+                    package_id=new_package,
+                    address=addresses[i],
+                    delivery_notes=notes[i]
+                )
+
+
+            return redirect("order:order_detail", order_id=order.id)
 
     return render(request, "delivery/add_deliveries.html", {
         "order": order

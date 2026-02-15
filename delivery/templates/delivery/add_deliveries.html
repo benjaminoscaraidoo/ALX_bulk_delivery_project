@@ -1,0 +1,105 @@
+{% block content %}
+
+<div class="container mt-5">
+    <h3>Add Delivery Details for Order #{{ order.id }}</h3>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <div id="packages"></div>
+
+        <div class="mb-3">
+            <button type="button" class="btn btn-secondary" onclick="addPackage()">
+                + Add Another Package
+            </button>
+
+            <button type="submit" class="btn btn-success">
+                Submit Deliveries
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+let packageCount = 0;
+
+function addPackage() {
+    packageCount++;
+
+    const container = document.getElementById("packages");
+
+    const div = document.createElement("div");
+    div.classList.add("package", "border", "p-3", "mb-3");
+    div.setAttribute("id", "package-" + packageCount);
+
+    div.innerHTML = `
+
+
+        <input type="text" name="description"
+               class="form-control mb-2"
+               placeholder="Package Description" required>
+
+        <input type="text" name="dimensions"
+               class="form-control mb-2"
+               placeholder="Package Dimensions" required>
+
+        <input type="text" name="value"
+               class="form-control mb-2"
+               placeholder="Package Value" optional>
+
+        <input type="checkbox"
+            class="form-check-input"
+            name="is_fragile"
+            value="{{ packageIndex }}">
+            <label class="form-check-label">
+                Fragile package
+            </label>
+
+        <input type="text" name="receiver_name"
+               class="form-control mb-2"
+               placeholder="Receiver name" required>
+
+        <input type="text" name="receiver_phone"
+               class="form-control mb-2"
+               placeholder="Receiver phone" required>
+
+        <textarea name="delivery_address"
+                  class="form-control mb-2"
+                  placeholder="Delivery address" required></textarea>
+
+        <textarea name="delivery_notes"
+                  class="form-control"
+                  placeholder="Delivery notes (optional)"></textarea>
+
+        <div class="d-flex justify-content-between">
+            <h5>Package ${packageCount}</h5>
+            <button type="button" 
+                    class="btn btn-sm btn-danger"
+                    onclick="removePackage(${packageCount})">
+                Remove
+            </button>
+        </div>
+    `;
+
+    container.appendChild(div);
+}
+
+function removePackage(id) {
+    const container = document.getElementById("packages");
+
+    if (container.children.length <= 1) {
+        alert("At least one package is required.");
+        return;
+    }
+
+    const element = document.getElementById("package-" + id);
+    element.remove();
+}
+
+// Create first package automatically on load
+window.onload = function() {
+    addPackage();
+}
+</script>
+
+{% endblock %}

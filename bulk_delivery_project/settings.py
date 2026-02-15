@@ -115,7 +115,7 @@ LOGOUT_REDIRECT_URL = '/'
 #LOGOUT_REDIRECT_URL = "/login/"
 
 #Add Session logout time
-AUTO_LOGOUT = {'IDLE_TIME' : 15, 'REDIRECT_TO_LOGIN_IMMEDIATELY': True,  
+AUTO_LOGOUT = {'IDLE_TIME' : 1800, 'REDIRECT_TO_LOGIN_IMMEDIATELY': True,  
                'MESSAGE':'Session Expired. Please Login again.',
                }
 

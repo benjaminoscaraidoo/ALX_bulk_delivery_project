@@ -15,9 +15,9 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = "__all__"
-        read_only_fields = ("customer", "status", "created_at")
+        read_only_fields = ("customer_id", "order_status", "created_at")
 
     def create(self, validated_data):
         request = self.context["request"]
-        validated_data["customer"] = request.user
+        validated_data["customer_id"] = request.user
         return super().create(validated_data)

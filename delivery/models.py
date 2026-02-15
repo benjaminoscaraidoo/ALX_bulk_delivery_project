@@ -15,11 +15,13 @@ class Delivery(models.Model):
     assigned_at = models.DateField(auto_now_add=True)
     picked_up_at = models.DateField(null=True, blank=True)
     delivered_at = models.DateField(null=True, blank=True)
+    address = models.CharField(max_length=350, blank=True)
     delivery_status =  models.CharField(max_length=20,choices=Status.choices,default=Status.ASSIGNED) 
-    
+    delivery_notes = models.CharField(max_length=350, blank=True)
+
     def __str__(self):
         #return self.delivery_status
-        return f"Delivery for Order {self.order.id}"
+        return f"Delivery for Order {self.package_id}"
     
 
 

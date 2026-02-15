@@ -39,8 +39,8 @@ urlpatterns = [
 
     path('api/v1/', include(router.urls)),
     path('', include('customer.urls')),
-    #path('api/v1/', include('order.urls')),
-    #path('api/v1/', include('delivery.urls')),
+    path('', include('order.urls')),
+    path('', include('delivery.urls')),
 ]
 
 
