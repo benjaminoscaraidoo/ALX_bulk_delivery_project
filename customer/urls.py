@@ -1,6 +1,16 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
-from .views import session_login,login_view,register_view,logout_view,update_profile,driver_home,home,MyTokenObtainPairView
+from .views import (
+    session_login,
+    login_view,
+    register_view,
+    logout_view,
+    update_profile,
+    update_password,
+    update_user,
+    driver_home,
+    home,
+    MyTokenObtainPairView)
 from . import views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -20,6 +30,8 @@ urlpatterns = [
     path("session-login/", session_login, name="session_login"),
     path("register/", register_view, name="register"),
     path("update-profile/", update_profile, name="update_profile"),
+    path('update_password/', update_password, name='update_password'),
+    path('update_user/', update_user, name='update_user'),
     path("logout/", logout_view, name="logout"),
 
 

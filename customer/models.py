@@ -84,12 +84,12 @@ class CustomerProfile(models.Model):
 
 
 class DriverProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,  related_name="driverprofile")
     date_modified = models.DateTimeField(User, auto_now=True)
     vehicle_type = models.CharField(max_length=150, blank=True)
     vehicle_number = models.CharField(max_length=50, blank=True) 
     license_number = models.CharField(max_length=50, blank=True) 
-    phone = PhoneNumberField(unique=True, null=True, blank=True)
+    #phone = PhoneNumberField(unique=True, null=True, blank=True)
     availability_status = models.BooleanField(default=True)
     is_complete = models.BooleanField(default=False)
     
