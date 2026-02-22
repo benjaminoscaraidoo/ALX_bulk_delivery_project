@@ -266,7 +266,6 @@ def update_user(request):
     
 
 
-
 def update_profile2(request):
     # Get the token from the Authorization header
     auth_header = request.headers.get("Authorization", "")
