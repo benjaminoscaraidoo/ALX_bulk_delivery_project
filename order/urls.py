@@ -10,5 +10,5 @@ urlpatterns = [
     #path("<int:order_id>/", order_detail, name="order_detail"),
     path("api/v1/create/", OrderCreateAPIView.as_view(), name="create_order"),
     path("api/v1/order_assign/", OrderAssignAPIView.as_view(), name="assign_order"),
-    path("api/v1/packages/create/",CreatePackagesAPIView.as_view(),name="create_packages"),
+    path("api/v1/package/create/",CreatePackagesAPIView.as_view(),name="create_packages"),
 ]

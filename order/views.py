@@ -121,18 +121,18 @@ def order_detail(request, order_id):
 class CreatePackagesAPIView(APIView):
     permission_classes = [IsAuthenticated, IsCustomerProfileComplete]
 
-    def post(self, request, order_id):
-        try:
-            order_id = request.data.get("order_id")
-            order = Order.objects.get(id=order_id, customer=request.user)
-        except Order.DoesNotExist:
-            return Response({"detail": "Order not found or you do not own it."}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = CreatePackagesSerializer(data=request.data, context={"order": order})
+    def post(self, request):
+        serializer = CreatePackagesSerializer(
+            data=request.data,
+            context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         packages = serializer.save()
 
         return Response(
-            {"detail": f"{len(packages)} packages created successfully."},
+            {
+                "detail": f"{len(packages)} packages created successfully.",
+                "package_ids": [pkg.id for pkg in packages]
+            },
             status=status.HTTP_201_CREATED
         )
