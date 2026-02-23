@@ -38,9 +38,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('api/v1/', include(router.urls)),
-    path('', include('customer.urls')),
-    path('', include('order.urls')),
-    path('', include('delivery.urls')),
+    path('customer/', include('customer.urls')),
+    path('order/', include('order.urls')),
+    path('delivery/', include('delivery.urls')),
 ]
 
 

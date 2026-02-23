@@ -10,7 +10,10 @@ from .views import (
     update_user,
     driver_home,
     home,
-    MyTokenObtainPairView)
+    MyTokenObtainPairView,
+    RegisterAPIView,
+    RoleBasedProfileAPIView,
+    DriverApprovalAPIView)
 from . import views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -33,7 +36,9 @@ urlpatterns = [
     path('update_password/', update_password, name='update_password'),
     path('update_user/', update_user, name='update_user'),
     path("logout/", logout_view, name="logout"),
-
+    path("api/v1/register/", RegisterAPIView.as_view(), name="api_register"),
+    path("api/v1/profile/update/", RoleBasedProfileAPIView.as_view(), name="api_role_profile"),
+    path("api/v1/admin/driver/approve/", DriverApprovalAPIView.as_view(), name="driver_approval"),
 
       # JWT Auth
     path("api/v1/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),

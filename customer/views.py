@@ -1,16 +1,21 @@
-from django.shortcuts import render, redirect
-from rest_framework import viewsets, permissions
-from .models import CustomerProfile, DriverProfile
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.views import View
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.views import APIView
+from rest_framework import status
+from rest_framework import viewsets, permissions
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 from .forms import UpdateUserForm, ChangePasswordForm, CustomerProfileForm, DriverProfileForm
 from django.http import JsonResponse
 import jwt
 from django.conf import settings
 from django.contrib import messages
-from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import (CustomerProfileSerializer,DriverProfileSerializer,MyTokenObtainPairSerializer)
+
+from .serializers import (DriverApprovalSerializer,CustomerProfileSerializer,DriverProfileSerializer,MyTokenObtainPairSerializer,RegisterSerializer )
 from customer.models import CustomUser, CustomerProfile, DriverProfile
 
 # Create your views here.
@@ -98,6 +103,152 @@ def register_view(request):
 
     return render(request, "auth/register.html")
 
+class RegisterAPIView(APIView):
+    permission_classes = [AllowAny]  # Allow public access
+
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+
+        if serializer.is_valid():
+            user = serializer.save()
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+
+            return Response(
+                {
+                    "message": "User registered successfully",
+                    "user": {
+                        "id": user.id,
+                        "email": user.email,
+                        "phone": user.phone_number,
+                        "role": user.role,
+                    },
+                    "tokens": {
+                        "access": str(refresh.access_token),
+                        "refresh": str(refresh),
+                    },
+                },
+                status=status.HTTP_201_CREATED,
+
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+    
+class RoleBasedProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.role == "customer":
+            profile, _ = CustomerProfile.objects.get_or_create(user=user)
+            serializer = CustomerProfileSerializer(profile)
+            return Response(serializer.data)
+
+        elif user.role == "driver":
+            profile, _ = DriverProfile.objects.get_or_create(user=user)
+            serializer = DriverProfileSerializer(profile)
+            return Response(serializer.data)
+
+        return Response(
+            {"error": "Invalid user role."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    def put(self, request):
+        user = request.user
+
+        if user.role == "customer":
+            profile, _ = CustomerProfile.objects.get_or_create(user=user)
+            serializer = CustomerProfileSerializer(
+                profile,
+                data=request.data,
+                partial=True
+            )
+
+        elif user.role == "driver":
+            profile, _ = DriverProfile.objects.get_or_create(user=user)
+            serializer = DriverProfileSerializer(
+                profile,
+                data=request.data,
+                partial=True
+            )
+
+        else:
+            return Response(
+                {"error": "Invalid user role."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if serializer.is_valid():
+            profile = serializer.save()
+
+            # Auto mark profile complete
+            if user.role == "customer":
+                if profile.customer_name and profile.address:
+                    profile.is_complete = True
+                    profile.save()
+
+            if user.role == "driver":
+                if (
+                    profile.vehicle_type
+                    and profile.vehicle_number
+                    and profile.license_number
+                ):
+                    profile.is_complete = True
+                    profile.save()
+
+            return Response({
+                "message": "Profile updated successfully",
+                "profile": serializer.data
+            })
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DriverApprovalAPIView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def put(self, request):
+        try:
+            email = request.data.get("email")
+            action = request.data.get("action")
+
+            if not email:
+                return Response(
+                    {"detail": "Email is required."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user = get_object_or_404(UserR, email=email, role="driver")
+            profile = get_object_or_404(DriverProfile, user=user)
+        except DriverProfile.DoesNotExist:
+            return Response(
+                {"error": "Driver not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if action == "approve":
+            profile.approval_status = "approved"
+            profile.is_approved = True
+        elif action == "reject":
+            profile.approval_status = "rejected"
+        else:
+            return Response(
+                {"detail": "Invalid action. Use 'approve' or 'reject'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        profile.save()
+
+        return Response(
+            {"detail": f"Driver {profile.approval_status} successfully."},
+            status=status.HTTP_200_OK
+        )
+    
+    
 
 def login_view(request):
     if request.method == "POST":
@@ -143,49 +294,6 @@ def session_login(request):
 def logout_view(request):
     logout(request)
     return redirect("customer:login")
-
-
-@login_required
-def update_profileN(request):
-    user = request.user
-
-    # Determine profile based on role
-    profile = None
-    if user.role == user.Role.CUSTOMER:
-        profile = getattr(user, "customer_profile", None)
-        if not profile:
-            profile = CustomerProfile.objects.create(user=user)
-    elif user.role == user.Role.DRIVER:
-        profile = getattr(user, "driverprofile", None)
-        if not profile:
-            profile = DriverProfile.objects.create(user=user)
-    else:
-        messages.info(request, "Admins do not have profiles to update.")
-        return redirect("customer:home")
-
-    if request.method == "POST":
-        if user.role == user.Role.CUSTOMER:
-            #profile.customer_name = request.POST.get("customer_name", profile.customer_name)
-            profile.address = request.POST.get("address", profile.address)
-        elif user.role == user.Role.DRIVER:
-            profile.vehicle_type = request.POST.get("vehicle_type", profile.vehicle_type)
-            profile.vehicle_number = request.POST.get("vehicle_number", profile.vehicle_number)
-            profile.license_number = request.POST.get("license_number", profile.license_number)
-
-
-        UserR.first_name = request.POST.get("firstName", UserR.first_name)
-        UserR.last_name = request.POST.get("firstName", UserR.last_name)
-
-        profile.save()
-        messages.success(request, "Profile updated successfully!")
-
-        UserR.save()
-        messages.success(request, "User updated successfully!")
-        return redirect("customer:home")
-
-    return render(request, "customer/update_profile.html", {"profile": profile})
-
-
 
 def update_profile(request):
     user = request.user
@@ -264,59 +372,3 @@ def update_user(request):
 		messages.success(request, "You Must Be Logged In To Access That Page!!")
 		return redirect('home')
     
-
-
-def update_profile2(request):
-    # Get the token from the Authorization header
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return redirect("/customer/login1/")  # no token, redirect to login
-
-    token = auth_header.split("Bearer ")[-1]
-
-    try:
-        # Decode JWT payload
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        user_id = payload.get("user_id")
-        role = payload.get("role")
-    except (jwt.ExpiredSignatureError, jwt.DecodeError, jwt.InvalidTokenError):
-        messages.error(request, "Invalid or expired token. Please login again.")
-        return redirect("/customer/login2/")
-
-    # Fetch user from DB
-    try:
-        user = CustomUser.objects.get(id=user_id)
-    except CustomUser.DoesNotExist:
-        messages.error(request, "User not found.")
-        return redirect("/customer/login/")
-
-    # Determine profile based on role
-    profile = None
-    if role == CustomUser.Role.CUSTOMER:
-        profile = getattr(user, "customer_profile", None)
-        if not profile:
-            profile = CustomerProfile.objects.create(user=user)
-    elif role == CustomUser.Role.DRIVER:
-        profile = getattr(user, "driverprofile", None)
-        if not profile:
-            profile = DriverProfile.objects.create(user=user)
-    else:
-        messages.info(request, "Admins do not have profiles to update.")
-        return redirect("/customer/home/")
-
-    # Handle form submission
-    if request.method == "POST":
-        if role == CustomUser.Role.CUSTOMER:
-            profile.customer_name = request.POST.get("customer_name", profile.customer_name)
-            profile.address = request.POST.get("address", profile.address)
-        elif role == CustomUser.Role.DRIVER:
-            profile.vehicle_type = request.POST.get("vehicle_type", profile.vehicle_type)
-            profile.vehicle_number = request.POST.get("vehicle_number", profile.vehicle_number)
-            profile.license_number = request.POST.get("license_number", profile.license_number)
-            profile.phone = request.POST.get("phone", profile.phone)
-
-        profile.save()
-        messages.success(request, "Profile updated successfully!")
-        return redirect("/home/")  # or role-based home
-
-    return render(request, "customer/update_profile.html", {"profile": profile, "role": role})

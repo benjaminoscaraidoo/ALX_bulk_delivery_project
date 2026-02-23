@@ -1,7 +1,7 @@
 from django.db import models
 from order.models import Package
 import datetime
-
+from customer.models import DriverProfile
 
 # Create your models here.
 class Delivery(models.Model):
@@ -18,6 +18,14 @@ class Delivery(models.Model):
     address = models.CharField(max_length=350, blank=True)
     delivery_status =  models.CharField(max_length=20,choices=Status.choices,default=Status.ASSIGNED) 
     delivery_notes = models.CharField(max_length=350, blank=True)
+
+    rider = models.ForeignKey(
+        DriverProfile,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_deliveries"
+    )
 
     def __str__(self):
         #return self.delivery_status

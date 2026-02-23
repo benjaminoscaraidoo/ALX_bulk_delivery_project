@@ -1,7 +1,32 @@
 from rest_framework import serializers
 from .models import CustomUser, CustomerProfile, DriverProfile
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth import get_user_model,authenticate
+from django.contrib.auth.password_validation import validate_password
+User = get_user_model()
 
+class CustomerProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomerProfile
+        fields = [
+            "customer_name",
+            "address",
+            "is_complete",
+        ]
+        read_only_fields = ["is_complete"]
+
+
+class DriverProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DriverProfile
+        fields = [
+            "vehicle_type",
+            "vehicle_number",
+            "license_number",
+            "availability_status",
+            "is_complete",
+        ]
+        read_only_fields = ["is_complete"]
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -9,30 +34,122 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "email",
+            "first_name",
+            "last_name",
             "phone_number",
-            "role",
-            "is_active",
-            "created_at",
         )
-        read_only_fields = ("id", "created_at")
+        read_only_fields = ("id", "email")
 
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True)
+    password2 = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ["email", "phone_number","role", "password", "password2"]
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email already exists.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["password2"]:
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+
+        validate_password(attrs["password"])
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop("password2")
+
+        user = User.objects.create_user(
+            email=validated_data["email"],
+            phone_number=validated_data.get("phone_number"),
+            #first_name = validated_data.get("firstname"),
+            #last_name = validated_data.get("lastname"),
+            role = validated_data.get("role"),
+            password=validated_data["password"],
+        )
+
+        return user
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    phone_number = serializers.CharField(source="user.phone_number", required=False)
 
     class Meta:
         model = CustomerProfile
-        fields = "__all__"
-        read_only_fields = ("user",)
+        fields = [
+            "first_name",
+            "last_name",
+            "phone_number",
+            "customer_name",
+            "address",
+            "is_complete",
+        ]
+        read_only_fields = ["is_complete"]
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+
+        # Update User model fields
+        if "first_name" in user_data:
+            instance.user.first_name = user_data["first_name"]
+
+        if "last_name" in user_data:
+            instance.user.last_name = user_data["last_name"]
+
+        if "phone_number" in user_data:
+            instance.user.phone_number = user_data["phone_number"]
+
+        instance.user.save()
+
+        # Update profile fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
 
 
 class DriverProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
 
     class Meta:
         model = DriverProfile
-        fields = "__all__"
-        read_only_fields = ("user",)
+        fields = [
+            "first_name",
+            "last_name",
+            "vehicle_type",
+            "vehicle_number",
+            "license_number",
+            "availability_status",
+            "is_complete",
+        ]
+        read_only_fields = ["is_complete"]
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+
+        # Update User fields
+        if "first_name" in user_data:
+            instance.user.first_name = user_data["first_name"]
+
+        if "last_name" in user_data:
+            instance.user.last_name = user_data["last_name"]
+
+        instance.user.save()
+
+        # Update profile fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -45,6 +162,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
+        user = self.user
         # Include role in response
         data['role'] = self.user.role
         # Optionally include profile completion status
@@ -56,3 +174,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         else:
             data['profile_complete'] = True
         return data
+
+
+class DriverApprovalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DriverProfile
+        fields = ["approval_status", "rejection_reason"]
