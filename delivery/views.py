@@ -5,6 +5,8 @@ from django.contrib.auth.decorators import login_required
 from rest_framework.response import Response
 from django.db import transaction
 from django.contrib import messages
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
 from customer.permissions import (
     IsDriver,
@@ -12,7 +14,7 @@ from customer.permissions import (
 )
 from .models import Delivery,Payment
 from order.models import Order,Package
-from .serializers import DeliverySerializer,PaymentSerializer
+from .serializers import DeliverySerializer,PaymentSerializer,CreateDeliveriesSerializer
 
 # Create your views here.
 class DeliveryViewSet(viewsets.ModelViewSet):
@@ -109,3 +111,31 @@ def add_deliveries(request, order_id):
     return render(request, "delivery/add_deliveries.html", {
         "order": order
     })
+
+
+
+
+class CreateDeliveriesAPIView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = CreateDeliveriesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            with transaction.atomic():
+                deliveries = serializer.save()
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {
+                "detail": f"{len(deliveries)} deliveries created successfully.",
+                "delivery_ids": [d.id for d in deliveries]
+            },
+            status=status.HTTP_201_CREATED
+        )
