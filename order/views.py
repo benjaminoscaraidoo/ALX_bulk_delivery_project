@@ -7,7 +7,7 @@ from rest_framework import status
 from customer.models import DriverProfile
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from .serializers import OrderSerializer, PackageSerializer, OrderCreateSerializer, OrderAssignSerializer, CreatePackagesSerializer
+from .serializers import OrderSerializer, PackageSerializer, OrderCreateSerializer, OrderAssignSerializer, CreatePackagesSerializer,PackageDetailsUpdateSerializer
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from customer.permissions import (
     IsCustomer,
@@ -139,3 +139,18 @@ class CreatePackagesAPIView(APIView):
     
 
 
+class PackageDetailsUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomerProfileComplete]
+
+    def put(self, request):
+        serializer = PackageDetailsUpdateSerializer(data=request.data, context={"request": request})
+        if serializer.is_valid():
+            package = serializer.save()
+            return Response(
+                {   
+                    "id": package.id, 
+                    "Receiver Name":package.receiver_name,
+                    "Receiver Phone":package.receiver_phone,
+                },
+                status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

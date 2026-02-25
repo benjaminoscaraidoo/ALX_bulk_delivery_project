@@ -1,5 +1,5 @@
 from rest_framework.routers import DefaultRouter
-from .views import OrderViewSet, PackageViewSet, create_order,order_detail,OrderCreateAPIView,OrderAssignAPIView, CreatePackagesAPIView
+from .views import OrderViewSet, PackageViewSet, create_order,order_detail,OrderCreateAPIView,OrderAssignAPIView, CreatePackagesAPIView,PackageDetailsUpdateAPIView
 from django.urls import path, include
 
 app_name = "order"
@@ -11,4 +11,5 @@ urlpatterns = [
     path("api/v1/create/", OrderCreateAPIView.as_view(), name="create_order"),
     path("api/v1/order_assign/", OrderAssignAPIView.as_view(), name="assign_order"),
     path("api/v1/package/create/",CreatePackagesAPIView.as_view(),name="create_packages"),
+    path("api/v1/package/update/",PackageDetailsUpdateAPIView.as_view(),name="update_packages"),
 ]

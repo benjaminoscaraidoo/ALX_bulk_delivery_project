@@ -64,7 +64,7 @@ class Package(models.Model):
     value = models.FloatField(default=0.0)
     fragile = models.BooleanField(default=False)
     receiver_name = models.CharField(max_length=350, blank=True)
-    receiver_phone = PhoneNumberField(null=True, blank=True)
+    receiver_phone = models.CharField(max_length=20, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.id:
