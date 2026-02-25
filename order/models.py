@@ -40,6 +40,7 @@ class Order(models.Model):
     pickup_address = models.CharField(max_length=350, null=True,blank=True) 
     total_price = models.FloatField(default=0.0)
     order_status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    cancel_reason = models.CharField(max_length=350, blank=True)
     created_at = models.DateField(default=datetime.datetime.today)
 
     def save(self, *args, **kwargs):

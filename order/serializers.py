@@ -109,11 +109,59 @@ class OrderAssignSerializer(serializers.Serializer):
         order.order_status = "assigned"
         order.save()
 
-        # Optionally mark driver as unavailable
-        #driver.availability_status = False
-        #driver.save()
+        return order
+    
+
+class OrderCancelSerializer(serializers.Serializer):
+    cancel_reason = serializers.CharField(required=True)
+    order_id = serializers.PrimaryKeyRelatedField(
+        queryset=Order.objects.all(),
+        source="order",
+        write_only=True,
+        required=True
+    )
+
+    def validate(self, attrs):
+        order = attrs.get("order")
+        request = self.context["request"]
+
+        # Ensure user owns the order
+        if order.customer_id != request.user:
+            raise serializers.ValidationError(
+                "You can only add packages to your own order."
+            )
+        
+        # Ensure delivered orders are not canceled
+        if order.order_status in ["delivered"]:
+            raise serializers.ValidationError(
+                "Cannot cancel delivered order."
+            )
+        
+        delivered_count = Delivery.objects.filter(
+                package_id__order_id=order.id,
+                delivery_status=Delivery.Status.DELIVERED
+            ).count()
+
+        if delivered_count > 0:
+            raise serializers.ValidationError(
+                "Cannot cancel an order with packages delivered."
+            )
+    
+        return attrs  
+
+
+    def create(self, validated_data):
+
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(
+                pk=validated_data["order"].pk
+            )
+            order.order_status = "cancelled"
+            order.cancel_reason = validated_data["cancel_reason"]
+            order.save()
 
         return order
+
     
 
 

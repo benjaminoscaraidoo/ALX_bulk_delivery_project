@@ -78,7 +78,7 @@ class IsCustomerProfileComplete(BasePermission):
         try:
             profile = user.customer_profile
             if not profile.is_complete:
-                self.message = "Complete your profile before creating orders."
+                self.message =  f"Complete your profile before creating/updating/cancelling orders. {user.email} {profile.is_complete}"
                 return False
         except CustomerProfile.DoesNotExist:
             self.message = "Customer profile not found. Please complete your profile."

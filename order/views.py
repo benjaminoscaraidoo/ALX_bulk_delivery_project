@@ -7,7 +7,16 @@ from rest_framework import status
 from customer.models import DriverProfile
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from .serializers import OrderSerializer, PackageSerializer, OrderCreateSerializer, OrderAssignSerializer, CreatePackagesSerializer,PackageDetailsUpdateSerializer
+from .serializers import (
+    OrderSerializer,
+    PackageSerializer, 
+    OrderCreateSerializer, 
+    OrderAssignSerializer, 
+    CreatePackagesSerializer,
+    PackageDetailsUpdateSerializer,
+    OrderCancelSerializer
+)
+
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from customer.permissions import (
     IsCustomer,
@@ -83,39 +92,22 @@ class OrderAssignAPIView(APIView):
         return Response({"detail": f" Order {order.id} Driver assigned successfully."}, status=status.HTTP_200_OK)
     
 
+class OrderCancelAPIView(APIView):
+    permission_classes = [IsAuthenticated,IsCustomerProfileComplete]
 
-#@login_required
-def create_order(request):
-    user = request.user
+    def put(self, request):
+        serializer = OrderCancelSerializer(data=request.data, context={"request": request})
+        if serializer.is_valid():
+            order = serializer.save()
+            return Response(
+                {   
+                    "id": order.id, 
+                    "Order Status":order.order_status
+                },
+                status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 
-    if not user.is_authenticated:
-        return render(request, 'home.html')
-
-    if request.method == "POST":
-        #total_amount = request.POST.get("total_amount")
-        pickup_address = request.POST.get("pickup_address")
-
-        order = Order.objects.create(
-            customer_id=request.user,
-            #total_amount=total_amount,
-            pickup_address = pickup_address,
-            order_status="Pending"
-        )
-
-        # Redirect to delivery step
-        return redirect("delivery:add_deliveries", order_id=order.id)
-
-    return render(request, "order/create_order.html")
-
-
-def order_detail(request, order_id):
-    order = get_object_or_404(Order, id=order_id)
-
-    return render(request, "order/order_detail.html", {"order": order})
-
-     #test_display=get_object_or_404(Order.objects.prefetch_related('order'), id)  
-     # or Model1.objects.prefetch_related('model_one').get(pk=pk)
-     #return render(request, 'order/order_detail.html', {'test_display':test_display})
 
 
 class CreatePackagesAPIView(APIView):
