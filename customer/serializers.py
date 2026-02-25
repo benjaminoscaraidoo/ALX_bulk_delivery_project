@@ -75,6 +75,43 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         return user
 
+
+
+class RegisterSuperUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True)
+    password2 = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ["email", "phone_number", "password", "password2","first_name","last_name",]
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email already exists.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["password2"]:
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+
+        validate_password(attrs["password"])
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop("password2")
+
+        user = User.objects.create_superuser(
+            email=validated_data["email"],
+            first_name=validated_data["first_name"],
+            last_name=validated_data["last_name"],
+            phone_number=validated_data.get("phone_number"),
+            password=validated_data["password"],
+        )
+
+        return user
+    
+    
+
 class CustomerProfileSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source="user.first_name", required=False)
     last_name = serializers.CharField(source="user.last_name", required=False)
@@ -86,7 +123,6 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone_number",
-            "customer_name",
             "address",
             "is_complete",
         ]
@@ -105,9 +141,14 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         if "phone_number" in user_data:
             instance.user.phone_number = user_data["phone_number"]
 
+            
+
         instance.user.save()
 
         # Update profile fields
+
+        instance.customer_name = instance.user.first_name + instance.user.last_name
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 

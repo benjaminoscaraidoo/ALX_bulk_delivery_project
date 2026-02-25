@@ -76,13 +76,6 @@ class CustomerProfile(models.Model):
         return self.customer_name
 	
 
-# Create a user Profile by default when user signs up
-#def create_profile(sender, instance, created, **kwargs):
-#	if created:
-#		user_profile = CustomerProfile(user=instance)
-#		user_profile.save()
-
-
 class DriverProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,  related_name="driverprofile")
     date_modified = models.DateTimeField(auto_now=True)
