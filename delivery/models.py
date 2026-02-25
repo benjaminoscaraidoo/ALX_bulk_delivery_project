@@ -25,9 +25,9 @@ class Delivery(models.Model):
         editable=False
     )
     package_id =  models.OneToOneField(Package, default=None, on_delete=models.CASCADE,related_name="deliveries")
-    assigned_at = models.DateField(auto_now_add=True)
-    picked_up_at = models.DateField(null=True, blank=True)
-    delivered_at = models.DateField(null=True, blank=True)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    picked_up_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
     address = models.CharField(max_length=350, blank=True)
     delivery_status =  models.CharField(max_length=20,choices=Status.choices,default=Status.ASSIGNED) 
     delivery_notes = models.CharField(max_length=350, blank=True)

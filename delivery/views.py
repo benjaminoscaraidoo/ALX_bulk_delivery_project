@@ -6,15 +6,17 @@ from rest_framework.response import Response
 from django.db import transaction
 from django.contrib import messages
 from rest_framework.views import APIView
+from rest_framework.generics import UpdateAPIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
 from customer.permissions import (
     IsDriver,
-    IsAssignedDriverOrAdmin
+    IsAssignedDriverOrAdmin,
+    IsDriverProfileComplete
 )
 from .models import Delivery,Payment
 from order.models import Order,Package
-from .serializers import DeliverySerializer,PaymentSerializer,CreateDeliveriesSerializer
+from .serializers import DeliverySerializer,PaymentSerializer,CreateDeliveriesSerializer,DriverDeliveryUpdateSerializer
 
 # Create your views here.
 class DeliveryViewSet(viewsets.ModelViewSet):
@@ -139,3 +141,33 @@ class CreateDeliveriesAPIView(APIView):
             },
             status=status.HTTP_201_CREATED
         )
+    
+
+
+class DriverDeliveryUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsDriverProfileComplete]
+
+    def put(self, request):
+        serializer = DriverDeliveryUpdateSerializer(data=request.data, context={"request": request})
+        if serializer.is_valid():
+            delivery = serializer.save()
+            return Response(
+                {   
+                    "id": delivery.id, 
+                    "Delivery Status":delivery.delivery_status
+                },
+                status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+
+
+class DriverDeliveryUpdateAPIView1(UpdateAPIView):
+    serializer_class = DriverDeliveryUpdateSerializer
+    permission_classes = [IsAuthenticated, IsDriverProfileComplete]
+
+    def get_queryset(self):
+        return Delivery.objects.filter(
+            rider__user=self.request.user
+        )
+    

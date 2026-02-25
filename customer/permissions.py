@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from .models import CustomerProfile
+from .models import CustomerProfile, DriverProfile
 
 class IsAdmin(BasePermission):
     """
@@ -82,6 +82,35 @@ class IsCustomerProfileComplete(BasePermission):
                 return False
         except CustomerProfile.DoesNotExist:
             self.message = "Customer profile not found. Please complete your profile."
+            return False
+
+        return True
+    
+
+
+
+class IsDriverProfileComplete(BasePermission):
+    """
+    Permission to allow only Drivers with completed profiles to update delivery
+    """
+    def has_permission(self, request, view):
+        user = request.user
+
+        if not user.is_authenticated:
+            self.message = "Authentication credentials were not provided."
+            return False
+
+        if user.role != "driver":
+            self.message = "Only drivers can update delivery."
+            return False
+
+        try:
+            profile = user.driverprofile
+            if not profile.is_complete:
+                self.message = "Complete your profile before updating deliviries."
+                return False
+        except DriverProfile.DoesNotExist:
+            self.message = "Driver profile not found. Please complete your profile."
             return False
 
         return True

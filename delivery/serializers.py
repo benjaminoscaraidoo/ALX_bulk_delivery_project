@@ -1,6 +1,9 @@
 from rest_framework import serializers
+from django.shortcuts import get_object_or_404
 from .models import Delivery, Payment
-from order.models import Package
+from order.models import Package, Order
+from datetime import datetime,date
+from django.db import transaction
 
 class DeliverySerializer(serializers.ModelSerializer):
     class Meta:
@@ -76,3 +79,105 @@ class CreateDeliveriesSerializer(serializers.Serializer):
             created_deliveries.append(delivery)
 
         return created_deliveries
+
+
+
+class DriverDeliveryUpdateSerializer(serializers.Serializer):
+
+    package_id = serializers.PrimaryKeyRelatedField(
+        queryset=Package.objects.all(),
+        source="package",
+        write_only=True
+    )
+
+    delivery_status = serializers.CharField(required=True)
+    delivery_notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        package = attrs["package"]
+        request = self.context["request"]
+
+        # Get delivery from package
+        try:
+            delivery = package.deliveries
+        except Delivery.DoesNotExist:
+            raise serializers.ValidationError("Delivery not found.")
+        
+                
+        # Ensure delivery belongs to this rider
+        if delivery.rider.user != request.user:
+            raise serializers.ValidationError(
+                "You can only update deliveries assigned to you."
+            )
+        
+        new_delivery_status = attrs["delivery_status"]
+        current_status = delivery.delivery_status
+
+        # 🔥 Prevent rollback
+        valid_transitions = {
+            "assigned": ["picked_up"],
+            "picked_up": ["delivered"],
+            "delivered": []
+        }
+
+        if new_delivery_status not in valid_transitions[current_status]:
+            raise serializers.ValidationError(
+                f"Invalid status transition from '{current_status}' to '{new_delivery_status}'."
+            )
+
+        attrs["delivery"] = delivery
+        return attrs
+
+    def create(self, validated_data):
+        """
+        We override create() because we're not passing an instance.
+        This is technically an UPDATE, but since no instance is passed,
+        DRF calls create().
+        """
+
+        with transaction.atomic():
+
+            delivery = Delivery.objects.select_for_update().get(
+                pk=validated_data["delivery"].pk
+            )
+
+            new_status = validated_data["delivery_status"]
+            delivery.delivery_notes = validated_data.get("delivery_notes", "")
+
+            if new_status == "picked_up":
+                delivery.picked_up_at = datetime.now()
+
+            if new_status == "delivered":
+                delivery.delivered_at = datetime.now()
+
+            delivery.delivery_status = new_status
+            delivery.save()
+
+            # 🔥 ORDER UPDATE LOGIC
+            order = delivery.package_id.order_id
+
+            # First pickup → in_transit
+            if new_status == "picked_up" and order.order_status != Order.Status.IN_TRANSIT:
+                order.order_status = Order.Status.IN_TRANSIT
+                order.save()
+
+            # If all deliveries delivered → order delivered
+            total = Delivery.objects.filter(
+                package_id__order_id=order.id
+            ).count()
+
+            delivered_count = Delivery.objects.filter(
+                package_id__order_id=order.id,
+                delivery_status=Delivery.Status.DELIVERED
+            ).count()
+
+            if total > 0 and total == delivered_count:
+                order.order_status = Order.Status.DELIVERED
+                order.save()
+
+                # Driver becomes available
+                driver = delivery.rider
+                driver.availability_status = True
+                driver.save()
+
+        return delivery
