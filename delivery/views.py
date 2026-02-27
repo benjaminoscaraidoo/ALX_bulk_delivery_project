@@ -1,5 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions,generics, filters as drf_filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from django.contrib.auth.decorators import login_required
 from rest_framework.response import Response
@@ -9,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.generics import UpdateAPIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
+from .filters import DeliveryFilter
 from customer.permissions import (
     IsDriver,
     IsAssignedDriverOrAdmin,
@@ -29,10 +32,11 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == "driver":
-            return Delivery.objects.filter(driver=user)
+            return Delivery.objects.filter(rider=user)
         if user.role == "admin":
             return Delivery.objects.all()
-        return Delivery.objects.filter(order__customer=user)
+        #return Delivery.objects.filter(order__customer=user)
+        return Delivery.objects.filter(package_id__order_id__customer_id=user)
 
     @action(detail=True, methods=["put"])
     def pickup(self, request, pk=None):
@@ -61,59 +65,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Payment.objects.all()
         return Payment.objects.filter(order__customer=user)
     
-    
-#@login_required
-def add_deliveries(request, order_id):
-
-
-    user = request.user
-
-    if not user.is_authenticated:
-        return render(request, 'home.html')
-    
-
-    order = get_object_or_404(Order, id=order_id, customer_id=request.user)
-    
-
-    if request.method == "POST":
-        description = request.POST.getlist("description")
-        dimensions = request.POST.getlist("dimensions")
-        receiver_names = request.POST.getlist("receiver_name")
-        phones = request.POST.getlist("receiver_phone")
-        addresses = request.POST.getlist("delivery_address")
-        notes = request.POST.getlist("delivery_notes")
-        fragile_flags = request.POST.getlist("is_fragile")
-        value = request.POST.getlist("value")
-
-        if not description:
-            messages.error(request, "At least one package is required.")
-            return redirect("delivery:add_deliveries", order_id=order.id)
-
-        with transaction.atomic():
-            for i in range(len(description)):
-                new_package = Package.objects.create(
-                    order_id=order,
-                    description=description[i],
-                    dimensions = dimensions[i],
-                    receiver_name=receiver_names[i],
-                    receiver_phone=phones[i],
-                    fragile=(str(i) in fragile_flags),
-                    value = value[i]
-                )
-
-                Delivery.objects.create(
-                    package_id=new_package,
-                    address=addresses[i],
-                    delivery_notes=notes[i]
-                )
-
-
-            return redirect("order:order_detail", order_id=order.id)
-
-    return render(request, "delivery/add_deliveries.html", {
-        "order": order
-    })
-
 
 
 
@@ -161,13 +112,36 @@ class DriverDeliveryUpdateAPIView(APIView):
     
 
 
+class DeliveryListAPIView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsAssignedDriverOrAdmin]
 
-class DriverDeliveryUpdateAPIView1(UpdateAPIView):
-    serializer_class = DriverDeliveryUpdateSerializer
-    permission_classes = [IsAuthenticated, IsDriverProfileComplete]
+    
+    serializer_class = DeliverySerializer
+    
+    # Combined backends: DjangoFilter (for dates/status) + SearchFilter (for text)
+    filter_backends = [
+        DjangoFilterBackend, 
+        drf_filters.SearchFilter, 
+        drf_filters.OrderingFilter
+    ]
+    
+    # Link the custom date filter class
+    filterset_class = DeliveryFilter
+    
+    # Text search fields (accessed via ?search=...)
+    search_fields = ['id', 'address', 'delivery_notes']
 
     def get_queryset(self):
-        return Delivery.objects.filter(
-            rider__user=self.request.user
-        )
-    
+
+        user = self.request.user
+
+        if user.role == "driver":
+            return Delivery.objects.filter(rider=user)
+        if user.role == "admin":
+            return Delivery.objects.all()
+        return Delivery.objects.filter(package_id__order_id__customer_id=user)
+
+
+    # Default ordering
+    ordering_fields = ['picked_up_at', 'delivered_at', 'assigned_at']
+    ordering = ['-assigned_at']

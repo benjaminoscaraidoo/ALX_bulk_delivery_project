@@ -56,7 +56,7 @@ class IsAssignedDriverOrAdmin(BasePermission):
     def has_object_permission(self, request, view, obj):
         return (
             request.user.role == "admin"
-            or obj.driver == request.user
+            or obj.rider == request.user
         )
 
 

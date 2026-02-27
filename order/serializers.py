@@ -3,6 +3,7 @@ from .models import Order, Package
 from customer.models import DriverProfile
 from delivery.models import Delivery
 from django.db import transaction
+from django.utils import timezone
 
 class PackageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -15,7 +16,6 @@ class PackageSerializer(serializers.ModelSerializer):
             "receiver_name",
             "receiver_phone",
         ]
-
 
     def create(self, validated_data):
         #request = self.context["request"]
@@ -137,6 +137,7 @@ class OrderCancelSerializer(serializers.Serializer):
                 "Cannot cancel delivered order."
             )
         
+
         delivered_count = Delivery.objects.filter(
                 package_id__order_id=order.id,
                 delivery_status=Delivery.Status.DELIVERED
@@ -160,10 +161,19 @@ class OrderCancelSerializer(serializers.Serializer):
             order.cancel_reason = validated_data["cancel_reason"]
             order.save()
 
+
+            # Cancel all related deliveries
+            Delivery.objects.filter(
+                package_id__order_id=order.id
+                ).exclude(
+                    delivery_status=Delivery.Status.DELIVERED
+                ).update(
+                    delivery_status=Delivery.Status.CANCELLED,
+                    delivered_at=None
+                )
+            
         return order
-
     
-
 
 class CreatePackagesSerializer(serializers.Serializer):
     order_id = serializers.PrimaryKeyRelatedField(

@@ -31,12 +31,12 @@ class Order(models.Model):
     delivery_date = models.DateField(null=True,blank=True)
     #driver_id = models.OneToOneField(DriverProfile, on_delete=models.CASCADE,null=True, default=None)
     driver_id = models.ForeignKey(
-    DriverProfile,
-    on_delete=models.SET_NULL,
-    null=True,
-    blank=True,
-    related_name="dorders"
-)
+        DriverProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dorders"
+    )
     pickup_address = models.CharField(max_length=350, null=True,blank=True) 
     total_price = models.FloatField(default=0.0)
     order_status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)

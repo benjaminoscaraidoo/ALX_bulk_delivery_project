@@ -19,6 +19,7 @@ class Delivery(models.Model):
         ASSIGNED = "assigned"
         PICKED_UP = "picked_up"
         DELIVERED = "delivered"
+        CANCELLED = "cancelled"
     id = models.CharField(
         primary_key=True,
         max_length=12,

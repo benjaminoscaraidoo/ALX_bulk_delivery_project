@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions,generics, filters as drf_filters
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import Order, Package
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -16,7 +17,7 @@ from .serializers import (
     PackageDetailsUpdateSerializer,
     OrderCancelSerializer
 )
-
+from .filters import OrderFilter
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from customer.permissions import (
     IsCustomer,
@@ -103,10 +104,46 @@ class OrderCancelAPIView(APIView):
                 {   
                     "id": order.id, 
                     "Order Status":order.order_status
+                    #order
                 },
                 status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+
+class OrderListAPIView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+
+    
+    serializer_class = OrderSerializer
+    
+    # Combined backends: DjangoFilter (for dates/status) + SearchFilter (for text)
+    filter_backends = [
+        DjangoFilterBackend, 
+        drf_filters.SearchFilter, 
+        drf_filters.OrderingFilter
+    ]
+    
+    # Link the custom date filter class
+    filterset_class = OrderFilter
+    
+    # Text search fields (accessed via ?search=...)
+    search_fields = ['id', 'pickup_address', 'cancel_reason']
+
+    def get_queryset(self):
+
+        user = self.request.user
+        
+        # If you want to allow admins to see everything:
+        if user.is_staff:
+            return Order.objects.all()
+            
+        # For regular users, filter by the ForeignKey field 'customer_id'
+        return Order.objects.filter(customer_id=user)
+
+
+    # Default ordering
+    ordering_fields = ['created_at', 'total_price']
+    ordering = ['-created_at']
 
 
 
