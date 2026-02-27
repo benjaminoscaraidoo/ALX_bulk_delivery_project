@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import CustomUser, CustomerProfile, DriverProfile
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.contrib.auth import get_user_model,authenticate
+from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.contrib.auth.password_validation import validate_password
 User = get_user_model()
 
@@ -221,3 +222,40 @@ class DriverApprovalSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = ["approval_status", "rejection_reason"]
+
+
+
+class ResetPasswordSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True)
+    password2 = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ["email","password", "password2"]
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["password2"]:
+            raise serializers.ValidationError({"password": "Passwords do not match."})
+        
+
+        validate_password(attrs["password"])
+        return attrs
+    
+    def validate_email(self, value):
+        if not User.objects.filter(email=value).exists:
+            raise serializers.ValidationError("Email doesn't exists.")
+        return value
+
+    def create(self, validated_data):
+
+        with transaction.atomic():
+
+            user = CustomUser.objects.select_for_update().get(
+                pk=validated_data["user"].pk
+            )
+            user.password=validated_data["password"]
+
+            user.save()
+    
+        return user
+

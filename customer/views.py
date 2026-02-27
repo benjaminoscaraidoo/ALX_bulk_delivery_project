@@ -9,13 +9,19 @@ from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .forms import UpdateUserForm, ChangePasswordForm, CustomerProfileForm, DriverProfileForm
 from django.http import JsonResponse
 import jwt
 from django.conf import settings
 from django.contrib import messages
 
-from .serializers import (DriverApprovalSerializer,CustomerProfileSerializer,DriverProfileSerializer,MyTokenObtainPairSerializer,RegisterSerializer,RegisterSuperUserSerializer)
+from .serializers import (
+    DriverApprovalSerializer,
+    CustomerProfileSerializer,
+    DriverProfileSerializer,
+    MyTokenObtainPairSerializer,
+    RegisterSerializer,
+    RegisterSuperUserSerializer,
+    ResetPasswordSerializer)
 from customer.models import CustomUser, CustomerProfile, DriverProfile
 
 # Create your views here.
@@ -39,6 +45,7 @@ class DriverProfileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return DriverProfile.objects.filter(user=self.request.user)
+    
     
 class RegisterAPIView(APIView):
     permission_classes = [AllowAny]  # Allow public access
@@ -106,8 +113,7 @@ class RegisterSuperUserAPIView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    
-    
+
 class RoleBasedProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -221,28 +227,27 @@ class DriverApprovalAPIView(APIView):
     
 
 
-def update_password(request):
-	if request.user.is_authenticated:
-		current_user = request.user
-		# Did they fill out the form
-		if request.method  == 'POST':
-			form = ChangePasswordForm(current_user, request.POST)
-			# Is the form valid
-			if form.is_valid():
-				form.save()
-				messages.success(request, "Your Password Has Been Updated...")
-				login(request, current_user)
-				return redirect('update_user')
-			else:
-				for error in list(form.errors.values()):
-					messages.error(request, error)
-					return redirect('update_password')
-		else:
-			form = ChangePasswordForm(current_user)
-			return render(request, "customer/update_password.html", {'form':form})
-	else:
-		messages.success(request, "You Must Be Logged In To View That Page...")
-		return redirect('home')
+class ResetPasswordAPIView(APIView):
+    permission_classes = [AllowAny]  # Allow public access
+
+    def put(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+
+        if serializer.is_valid():
+            user = serializer.save()
+
+            return Response(
+                {
+                    "message": "Password Reset successfully",
+                    "user": {
+                        "id": user.id,
+                    },
+                },
+                status=status.HTTP_201_CREATED,
+
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
      
 
 

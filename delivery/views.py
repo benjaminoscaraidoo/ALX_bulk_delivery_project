@@ -6,7 +6,6 @@ from rest_framework.decorators import action
 from django.contrib.auth.decorators import login_required
 from rest_framework.response import Response
 from django.db import transaction
-from django.contrib import messages
 from rest_framework.views import APIView
 from rest_framework.generics import UpdateAPIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
