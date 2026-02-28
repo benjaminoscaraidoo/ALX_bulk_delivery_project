@@ -3,8 +3,8 @@ from .models import Order, Package
 from customer.models import DriverProfile
 from delivery.models import Delivery
 from django.db import transaction
-from django.utils import timezone
 
+# Serializer for package 
 class PackageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Package
@@ -18,7 +18,7 @@ class PackageSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        #request = self.context["request"]
+
         if not validated_data["receiver_phone"]:
             raise serializers.ValidationError("Receiver Phone number mandatory.")
         
@@ -28,6 +28,8 @@ class PackageSerializer(serializers.ModelSerializer):
 
         return super().create(validated_data)
 
+
+# Serializer for order
 class OrderSerializer(serializers.ModelSerializer):
     packages = PackageSerializer(many=True, read_only=True)
 
@@ -42,6 +44,7 @@ class OrderSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
     
 
+# Serializer for order creation
 class OrderCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -53,19 +56,16 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def create(self, validated_data):
-        request = self.context.get("request")  # get the request
+        request = self.context.get("request")  
         user = request.user if request else None
 
-        #Only customers can create orders
         if not user or user.role != "customer":
             print("DEBUG: user.role =", getattr(user, "role", None))
             raise serializers.ValidationError("Only customers can create orders.")
 
-        # Force profile completion
         if not getattr(user, "customer_profile", None) or not user.customer_profile.is_complete:
             raise serializers.ValidationError("Complete your profile before placing an order.")
 
-        # Assign available driver
         driver = (
             DriverProfile.objects
             .filter(
@@ -73,7 +73,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 is_complete=True,
                 approval_status="approved"
             )
-            .exclude(dorders__order_status__in=["pending", "assigned"])  # Prevent driver conflict
+            .exclude(dorders__order_status__in=["pending", "assigned"]) 
             .first()
         )
 
@@ -87,6 +87,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return order
     
 
+# Serializer for manually assigning order to a driver/rider
 class OrderAssignSerializer(serializers.Serializer):
     driver_email = serializers.EmailField(required=True)
 
@@ -104,7 +105,6 @@ class OrderAssignSerializer(serializers.Serializer):
         order = self.context["order"]
         driver = DriverProfile.objects.get(user__email=self.validated_data["driver_email"])
 
-        # Assign driver
         order.driver_id = driver
         order.order_status = "assigned"
         order.save()
@@ -112,6 +112,7 @@ class OrderAssignSerializer(serializers.Serializer):
         return order
     
 
+# Serializer for cancelling orders
 class OrderCancelSerializer(serializers.Serializer):
     cancel_reason = serializers.CharField(required=True)
     order_id = serializers.PrimaryKeyRelatedField(
@@ -125,13 +126,11 @@ class OrderCancelSerializer(serializers.Serializer):
         order = attrs.get("order")
         request = self.context["request"]
 
-        # Ensure user owns the order
         if order.customer_id != request.user:
             raise serializers.ValidationError(
                 "You can only add packages to your own order."
             )
         
-        # Ensure delivered orders are not canceled
         if order.order_status in ["delivered"]:
             raise serializers.ValidationError(
                 "Cannot cancel delivered order."
@@ -161,8 +160,6 @@ class OrderCancelSerializer(serializers.Serializer):
             order.cancel_reason = validated_data["cancel_reason"]
             order.save()
 
-
-            # Cancel all related deliveries
             Delivery.objects.filter(
                 package_id__order_id=order.id
                 ).exclude(
@@ -175,6 +172,7 @@ class OrderCancelSerializer(serializers.Serializer):
         return order
     
 
+# Serializer for creating packages
 class CreatePackagesSerializer(serializers.Serializer):
     order_id = serializers.PrimaryKeyRelatedField(
         queryset=Order.objects.all(),
@@ -187,14 +185,13 @@ class CreatePackagesSerializer(serializers.Serializer):
         order = attrs["order"]
         request = self.context["request"]
 
-        # Ensure user owns the order
+
         if order.customer_id != request.user:
             raise serializers.ValidationError(
                 "You can only add packages to your own order."
             )
 
-        # Prevent modification if already assigned
-        #if order.order_status in ["in_transit", "delivered"]:
+
         if order.order_status in ["delivered"]:
             raise serializers.ValidationError(
                 "Cannot add packages to an active or completed order."
@@ -220,7 +217,7 @@ class CreatePackagesSerializer(serializers.Serializer):
         return created_packages
 
 
-
+# Serialier for package information update
 class PackageDetailsUpdateSerializer(serializers.Serializer):
 
     package_id = serializers.PrimaryKeyRelatedField(
@@ -247,7 +244,6 @@ class PackageDetailsUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Order not found.")
                 
 
-        # Ensure user owns the order
         if order.customer_id != request.user:
             raise serializers.ValidationError(
                 "You can only update packages to your own order."
@@ -264,11 +260,6 @@ class PackageDetailsUpdateSerializer(serializers.Serializer):
     
 
     def create(self, validated_data):
-        """
-        We override create() because we're not passing an instance.
-        This is technically an UPDATE, but since no instance is passed,
-        DRF calls create().
-        """
 
         with transaction.atomic():
 
