@@ -1,13 +1,14 @@
 from django.db import models
-from phonenumber_field.modelfields import PhoneNumberField
-from django.contrib.auth.models import User, AbstractUser,BaseUserManager,PermissionsMixin
+from django.contrib.auth.models import AbstractUser,BaseUserManager,PermissionsMixin
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import uuid
 from django.contrib.auth import get_user_model
+
 # Create your models here.
 
+#Custom BaseUserManager 
 
 class CustomUserManager(BaseUserManager):
     def create_user(self,email,phone_number,password=None, **extra_fields):
@@ -40,6 +41,7 @@ class CustomUserManager(BaseUserManager):
         return self.create_user(email,phone_number,password, **extra_fields)
 
 
+# Customer User model 
 class CustomUser(AbstractUser, PermissionsMixin):
     class Role(models.TextChoices):
         CUSTOMER = "customer", "Customer"
@@ -56,13 +58,14 @@ class CustomUser(AbstractUser, PermissionsMixin):
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["phone_number"]
-    #phone_verified = models.BooleanField(default=False)
-    #verification_token = models.CharField(max_length=6, null=True, blank=True)
+
     objects = CustomUserManager()
 
     def __str__(self):
         return self.email
 
+
+#CustomerProfile model for customers
 
 class CustomerProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="customer_profile")
@@ -73,9 +76,10 @@ class CustomerProfile(models.Model):
 
 
     def __str__(self):
-        #return self.user.username
         return self.customer_name
 	
+
+#DriverProfile model for riders/drivers
 
 class DriverProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,  related_name="driverprofile")
@@ -102,6 +106,7 @@ class DriverProfile(models.Model):
         return f"{self.user.email} - {self.approval_status}"
     
 
+#OTP Model for Email
 class EmailOTP(models.Model):
 
     class Purpose(models.TextChoices):
@@ -111,7 +116,6 @@ class EmailOTP(models.Model):
     User = get_user_model()
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    #user = models.ForeignKey(User, on_delete=models.CASCADE)
     otp = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
