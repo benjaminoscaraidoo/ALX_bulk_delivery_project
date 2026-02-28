@@ -12,9 +12,16 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from datetime import timedelta
+import environ
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env()
+
+env.read_env(BASE_DIR / ".env")
+
 
 
 # Quick-start development settings - unsuitable for production
@@ -102,6 +109,8 @@ SECURE_HSTS_PRELOAD = True
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+#Add token lifetime
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -114,14 +123,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'brynarx@gmail.com'
-EMAIL_HOST_PASSWORD = 'enqwdvfkzcjjbhle'
+EMAIL_HOST_USER = env('EMAIL_ADDRESS')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD') 
 
-
-#Add Session logout time
-AUTO_LOGOUT = {'IDLE_TIME' : 1800, 'REDIRECT_TO_LOGIN_IMMEDIATELY': True,  
-               'MESSAGE':'Session Expired. Please Login again.',
-               }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators

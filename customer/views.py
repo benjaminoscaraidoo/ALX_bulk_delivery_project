@@ -17,9 +17,11 @@ from .serializers import (
     CustomerProfileSerializer,
     DriverProfileSerializer,
     MyTokenObtainPairSerializer,
-    RegisterSerializer,
+    RegisterRequestSerializer,
+    RegisterVerifySerializer,
+    RegisterConfirmSerializer,
     RegisterSuperUserSerializer,
-    ResetPasswordSerializer,
+    RegisterRequestSerializer,
     VerifyOTPSerializer,
     PasswordResetRequestSerializer,
     PasswordResetVerifySerializer,
@@ -49,64 +51,135 @@ class DriverProfileViewSet(viewsets.ModelViewSet):
         return DriverProfile.objects.filter(user=self.request.user)
     
     
-class RegisterAPIView(APIView):
-    throttle_classes = [OTPRegisterThrottle]
 
+class RegisterRequestAPIView(APIView):
+    throttle_classes = [OTPRegisterThrottle]  # reuse throttle
     permission_classes = [AllowAny]  # Allow public access
 
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
 
+        serializer = RegisterRequestSerializer(data=request.data)
         if serializer.is_valid():
+    
             user = serializer.save()
 
-            send_otp(user)
+            # Delete old reset OTPs
+            EmailOTP.objects.filter(user=user, otp_purpose="registration").delete()
 
-            return Response({
-                "message": "OTP sent to your email"
-            }, status=status.HTTP_201_CREATED)
+            send_otp(user, otp_purpose="registration")
+
+            return Response(
+                {"message": "If valid email, OTP sent"},
+                status=status.HTTP_201_CREATED,
+                )
         
-
-            # Generate JWT tokens
-           # refresh = RefreshToken.for_user(user)
-
-          #  return Response(
-           #     {
-             #       "message": "User registered successfully",
-           #         "user": {
-             #           "id": user.id,
-            #            "email": user.email,
-            #            "phone": user.phone_number,
-           #             "role": user.role,
-           #         },
-           #         "tokens": {
-           #             "access": str(refresh.access_token),
-          ##              "refresh": str(refresh),
-          #          },
-          #      },
-             #   status=status.HTTP_201_CREATED,
-
-            #)
-
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-class RegisterSuperUserAPIView(APIView):
-    throttle_classes = [OTPRegisterThrottle]
+class RegisterSuperUserRequestAPIView(APIView):
+    throttle_classes = [OTPRegisterThrottle]  # reuse throttle
     permission_classes = [AllowAny]  # Allow public access
 
     def post(self, request):
-        serializer = RegisterSuperUserSerializer(data=request.data)
 
+        serializer = RegisterSuperUserSerializer(data=request.data)
         if serializer.is_valid():
+    
             user = serializer.save()
 
-            # Generate JWT tokens
-            refresh = RefreshToken.for_user(user)
+            # Delete old reset OTPs
+            EmailOTP.objects.filter(user=user, otp_purpose="registration").delete()
+
+            send_otp(user, otp_purpose="registration")
 
             return Response(
+                {"message": "If valid email, OTP sent"},
+                status=status.HTTP_201_CREATED,
+                )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class RegisterVerifyAPIView(APIView):
+    throttle_classes = [OTPVerifyThrottle]
+
+    def post(self, request):
+
+        serializer = RegisterVerifySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        email = serializer.validated_data["email"]
+        otp_entered = serializer.validated_data["otp"]
+
+        try:
+            user = UserR.objects.get(email=email)
+        except UserR.DoesNotExist:
+            return Response({"error": "Invalid request"}, status=400)
+
+        otp_obj = EmailOTP.objects.filter(
+            user=user,
+            otp_purpose="registration",
+            is_verified=False
+        ).last()
+
+        if not otp_obj:
+            return Response({"error": "Invalid OTP"}, status=400)
+
+        if otp_obj.is_locked():
+            return Response({"error": "Too many attempts"}, status=403)
+
+        if otp_obj.is_expired():
+            return Response({"error": "OTP expired"}, status=400)
+
+        if otp_obj.otp != otp_entered:
+            otp_obj.attempt_count += 1
+            otp_obj.save()
+            return Response({"error": "Invalid OTP"}, status=400)
+
+        # Mark OTP verified
+        otp_obj.is_verified = True
+        otp_obj.save()
+
+        # Issue short-lived reset token (5 minutes)
+        token = AccessToken.for_user(user)
+        token["scope"] = "registration"
+
+        return Response({
+            "reset_token": str(token)
+        })
+    
+
+class RegisterConfirmAPIView(APIView):
+
+    def post(self, request):
+
+        serializer = RegisterConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        token = serializer.validated_data["register_token"]
+
+        try:
+            access = AccessToken(token)
+        except TokenError:
+            return Response({"error": "Invalid token"}, status=400)
+
+        if access.get("scope") != "registration":
+            return Response({"error": "Invalid scope"}, status=403)
+
+        user_id = access["user_id"]
+        user = UserR.objects.get(id=user_id)
+
+        user.is_active = True
+        user.save()
+
+        refresh = RefreshToken.for_user(user)
+        
+        return Response(
                 {
-                    "message": "Super User registered successfully",
+                    "message": "User registered successfully",
                     "user": {
                         "id": user.id,
                         "email": user.email,
@@ -122,8 +195,6 @@ class RegisterSuperUserAPIView(APIView):
 
             )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 
 class RoleBasedProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -236,30 +307,6 @@ class DriverApprovalAPIView(APIView):
             status=status.HTTP_200_OK
         )
     
-
-
-class ResetPasswordAPIView(APIView):
-    permission_classes = [AllowAny]  # Allow public access
-
-    def put(self, request):
-        serializer = ResetPasswordSerializer(data=request.data)
-
-        if serializer.is_valid():
-            user = serializer.save()
-
-            return Response(
-                {
-                    "message": "Password Reset successfully",
-                    "user": {
-                        "id": user.id,
-                    },
-                },
-                status=status.HTTP_201_CREATED,
-
-            )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 class VerifyOTPAPIView(APIView):
     throttle_classes = [OTPVerifyThrottle]

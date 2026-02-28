@@ -42,22 +42,24 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "email")
 
 
-class RegisterSerializer(serializers.ModelSerializer):
+
+class RegisterRequestSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = CustomUser
-        fields = ["email", "phone_number","role", "password", "password2"]
+        fields = ["email", "phone_number", "role", "password" , "password2"]
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists.")
         return value
-
+    
     def validate(self, attrs):
         if attrs["password"] != attrs["password2"]:
             raise serializers.ValidationError({"password": "Passwords do not match."})
+        
 
         validate_password(attrs["password"])
         return attrs
@@ -65,14 +67,30 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("password2")
 
+        if validated_data["role"] == "admin":
+
+            if not validated_data["first_name"] or not validated_data["last_name"]:
+                raise serializers.ValidationError("First or Last name missing for Admin user")
+        
         user = User.objects.create_user(
             email=validated_data["email"],
             phone_number=validated_data.get("phone_number"),
             role = validated_data.get("role"),
             password=validated_data["password"],
+            is_active=False
         )
 
         return user
+    
+
+class RegisterVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    
+class RegisterConfirmSerializer(serializers.Serializer):
+    register_token = serializers.CharField()
+    email = serializers.EmailField()
 
 
 class RegisterSuperUserSerializer(serializers.ModelSerializer):
@@ -81,16 +99,17 @@ class RegisterSuperUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ["email", "phone_number", "password", "password2","first_name","last_name",]
+        fields = ["email", "phone_number", "first_name","last_name", "password" , "password2"]
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists.")
         return value
-
+    
     def validate(self, attrs):
         if attrs["password"] != attrs["password2"]:
             raise serializers.ValidationError({"password": "Passwords do not match."})
+        
 
         validate_password(attrs["password"])
         return attrs
@@ -139,8 +158,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         if "phone_number" in user_data:
             instance.user.phone_number = user_data["phone_number"]
 
-            
-
+        
         instance.user.save()
 
         # Update profile fields
@@ -253,7 +271,7 @@ class ResetPasswordSerializer(serializers.ModelSerializer):
     
 
 class PasswordResetRequestSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    email = serializers.EmailField()    
     
 class PasswordResetVerifySerializer(serializers.Serializer):
     email = serializers.EmailField()

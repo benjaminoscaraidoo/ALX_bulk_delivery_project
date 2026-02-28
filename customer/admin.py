@@ -24,6 +24,6 @@ class DriverProfileAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmailOTP)
-class DriverProfileAdmin(admin.ModelAdmin):
+class EmailOTPAdmin(admin.ModelAdmin):
     list_display = ("user", "created_at", "is_verified")
     search_fields = ("user__email","created_at")

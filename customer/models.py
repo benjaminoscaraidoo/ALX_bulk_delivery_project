@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import uuid
-
+from django.contrib.auth import get_user_model
 # Create your models here.
 
 
@@ -34,7 +34,7 @@ class CustomUserManager(BaseUserManager):
 
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("is_active", True)
+        extra_fields.setdefault("is_active", False)
         extra_fields.setdefault("role", CustomUser.Role.ADMIN)
 
         return self.create_user(email,phone_number,password, **extra_fields)
@@ -108,7 +108,10 @@ class EmailOTP(models.Model):
         REGISTRATION = "registration", "Registration"
         PASSWORDRESET = "password_reset", "Password Reset"
 
+    User = get_user_model()
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    #user = models.ForeignKey(User, on_delete=models.CASCADE)
     otp = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
@@ -125,4 +128,4 @@ class EmailOTP(models.Model):
         return self.attempt_count >= self.max_attempts
 
     def __str__(self):
-        return f"{self.user.email} - {self.code}"
+        return f"{self.user.email} - {self.otp}"
