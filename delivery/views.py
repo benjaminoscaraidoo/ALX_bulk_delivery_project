@@ -1,13 +1,10 @@
-from django.shortcuts import render, get_object_or_404, redirect
 from rest_framework import viewsets, permissions, status
 from rest_framework import viewsets, permissions,generics, filters as drf_filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
-from django.contrib.auth.decorators import login_required
 from rest_framework.response import Response
 from django.db import transaction
 from rest_framework.views import APIView
-from rest_framework.generics import UpdateAPIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
 from .filters import DeliveryFilter
@@ -17,10 +14,11 @@ from customer.permissions import (
     IsDriverProfileComplete
 )
 from .models import Delivery,Payment
-from order.models import Order,Package
 from .serializers import DeliverySerializer,PaymentSerializer,CreateDeliveriesSerializer,DriverDeliveryUpdateSerializer
 
 # Create your views here.
+
+# View for Delivery 
 class DeliveryViewSet(viewsets.ModelViewSet):
     serializer_class = DeliverySerializer
     permission_classes = [
@@ -54,6 +52,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         return Response({"status": "delivered"})
 
 
+# View for Payment
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -66,7 +65,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     
 
 
-
+#View for Creating Deliveries
 class CreateDeliveriesAPIView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -94,6 +93,7 @@ class CreateDeliveriesAPIView(APIView):
     
 
 
+# View for Delivery update by driver/rider
 class DriverDeliveryUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsDriverProfileComplete]
 
@@ -111,23 +111,21 @@ class DriverDeliveryUpdateAPIView(APIView):
     
 
 
+# View for Delivery List Filter
 class DeliveryListAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsAssignedDriverOrAdmin]
 
     
     serializer_class = DeliverySerializer
     
-    # Combined backends: DjangoFilter (for dates/status) + SearchFilter (for text)
     filter_backends = [
         DjangoFilterBackend, 
         drf_filters.SearchFilter, 
         drf_filters.OrderingFilter
     ]
     
-    # Link the custom date filter class
     filterset_class = DeliveryFilter
     
-    # Text search fields (accessed via ?search=...)
     search_fields = ['id', 'address', 'delivery_notes']
 
     def get_queryset(self):
@@ -140,7 +138,5 @@ class DeliveryListAPIView(generics.ListAPIView):
             return Delivery.objects.all()
         return Delivery.objects.filter(package_id__order_id__customer_id=user)
 
-
-    # Default ordering
     ordering_fields = ['picked_up_at', 'delivered_at', 'assigned_at']
     ordering = ['-assigned_at']
