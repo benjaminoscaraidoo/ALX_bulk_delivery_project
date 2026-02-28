@@ -1,10 +1,10 @@
 from rest_framework import serializers
-from django.shortcuts import get_object_or_404
 from .models import Delivery, Payment
 from order.models import Package, Order
 from datetime import datetime
 from django.db import transaction
 
+# Serializer for Delivery
 class DeliverySerializer(serializers.ModelSerializer):
     class Meta:
         model = Delivery
@@ -16,6 +16,7 @@ class DeliverySerializer(serializers.ModelSerializer):
             "delivery_status",
         )
 
+# Serializer for Payment
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
@@ -23,7 +24,8 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ("status", "paid_at")
 
 
-
+# Serializer for DeliveryItem
+# Used in Creating deliveries serializer
 class DeliveryItemSerializer(serializers.Serializer):
     package_id = serializers.PrimaryKeyRelatedField(
         queryset=Package.objects.all()
@@ -39,7 +41,7 @@ class DeliveryItemSerializer(serializers.Serializer):
                 f"Package {package.id} already has a delivery."
             )
 
-        order = package.order_id  # adjust if your field name differs
+        order = package.order_id  
 
         if not order.driver_id:
             raise serializers.ValidationError(
@@ -51,7 +53,7 @@ class DeliveryItemSerializer(serializers.Serializer):
     
 
 
-
+# Serializer for Creating deliveries for multiple packages
 class CreateDeliveriesSerializer(serializers.Serializer):
     deliveries = DeliveryItemSerializer(many=True)
 
@@ -75,13 +77,13 @@ class CreateDeliveriesSerializer(serializers.Serializer):
         created_deliveries = []
 
         for delivery in delivery_objects:
-            delivery.save()  # ensures ID generation runs
+            delivery.save() 
             created_deliveries.append(delivery)
 
         return created_deliveries
 
 
-
+# Serializer for Delivery status update by assigned driver/riders
 class DriverDeliveryUpdateSerializer(serializers.Serializer):
 
     package_id = serializers.PrimaryKeyRelatedField(
@@ -113,7 +115,7 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
         new_delivery_status = attrs["delivery_status"]
         current_status = delivery.delivery_status
 
-        # 🔥 Prevent rollback
+        # Prevent rollback
         valid_transitions = {
             "assigned": ["picked_up"],
             "picked_up": ["delivered"],
@@ -148,15 +150,12 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
             delivery.delivery_status = new_status
             delivery.save()
 
-            # 🔥 ORDER UPDATE LOGIC
             order = delivery.package_id.order_id
 
-            # First pickup → in_transit
             if new_status == "picked_up" and order.order_status != Order.Status.IN_TRANSIT:
                 order.order_status = Order.Status.IN_TRANSIT
                 order.save()
 
-            # If all deliveries delivered → order delivered
             total = Delivery.objects.filter(
                 package_id__order_id=order.id
             ).count()
@@ -170,7 +169,6 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
                 order.order_status = Order.Status.DELIVERED
                 order.save()
 
-                # Driver becomes available
                 driver = delivery.rider
                 driver.availability_status = True
                 driver.save()
