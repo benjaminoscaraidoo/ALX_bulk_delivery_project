@@ -1,19 +1,12 @@
 from django.db import models
-from customer.models import CustomerProfile,DriverProfile
+from customer.models import DriverProfile
 import datetime
-import uuid
 from django.conf import settings
-from phonenumber_field.modelfields import PhoneNumberField
-
+from .utils import generate_order_id, generate_package_id
 
 # Create your models here.
 
-def generate_package_id():
-    return f"PKG{uuid.uuid4().hex[:8].upper()}"
-
-def generate_order_id():
-    return f"ORD{uuid.uuid4().hex[:8].upper()}"
-
+# Models for Order
 class Order(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending"
@@ -29,7 +22,6 @@ class Order(models.Model):
     )
     customer_id = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="orders")
     delivery_date = models.DateField(null=True,blank=True)
-    #driver_id = models.OneToOneField(DriverProfile, on_delete=models.CASCADE,null=True, default=None)
     driver_id = models.ForeignKey(
         DriverProfile,
         on_delete=models.SET_NULL,
@@ -52,7 +44,7 @@ class Order(models.Model):
         return f"Order #{self.id}" 
     
 
-
+# Models for Packages
 class Package(models.Model):
     id = models.CharField(
         primary_key=True,
