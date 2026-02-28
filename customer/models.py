@@ -3,6 +3,7 @@ from phonenumber_field.modelfields import PhoneNumberField
 from django.contrib.auth.models import User, AbstractUser,BaseUserManager,PermissionsMixin
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 import uuid
 
 # Create your models here.
@@ -49,7 +50,7 @@ class CustomUser(AbstractUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
 
@@ -82,7 +83,6 @@ class DriverProfile(models.Model):
     vehicle_type = models.CharField(max_length=150, blank=True)
     vehicle_number = models.CharField(max_length=50, blank=True) 
     license_number = models.CharField(max_length=50, blank=True) 
-    #phone = PhoneNumberField(unique=True, null=True, blank=True)
     availability_status = models.BooleanField(default=True)
     is_complete = models.BooleanField(default=False)
     is_approved = models.BooleanField(default=False)
@@ -99,5 +99,30 @@ class DriverProfile(models.Model):
     
 
     def __str__(self):
-          #return self.user.username
         return f"{self.user.email} - {self.approval_status}"
+    
+
+class EmailOTP(models.Model):
+
+    class Purpose(models.TextChoices):
+        REGISTRATION = "registration", "Registration"
+        PASSWORDRESET = "password_reset", "Password Reset"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_verified = models.BooleanField(default=False)
+    otp_purpose = models.CharField(max_length=20, choices=Purpose.choices,default=False)  
+
+    attempt_count = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=5)
+
+    def is_expired(self):
+
+        return timezone.now() - self.created_at > timedelta(minutes=5)
+
+    def is_locked(self):
+        return self.attempt_count >= self.max_attempts
+
+    def __str__(self):
+        return f"{self.user.email} - {self.code}"

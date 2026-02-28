@@ -110,18 +110,13 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
-# Redirect to home page after successful login
-LOGIN_URL = '/customer/login/' 
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'brynarx@gmail.com'
+EMAIL_HOST_PASSWORD = 'enqwdvfkzcjjbhle'
 
-LOGIN_REDIRECT_URL = '/'
-
-# Redirect to home page after logout
-LOGOUT_REDIRECT_URL = '/'
-
-
-#LOGIN_URL = "/login/"
-#LOGIN_REDIRECT_URL = "/home/"
-#LOGOUT_REDIRECT_URL = "/login/"
 
 #Add Session logout time
 AUTO_LOGOUT = {'IDLE_TIME' : 1800, 'REDIRECT_TO_LOGIN_IMMEDIATELY': True,  
@@ -147,9 +142,19 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
  
 REST_FRAMEWORK = {
- 'DEFAULT_AUTHENTICATION_CLASSES': (
- 'rest_framework_simplejwt.authentication.JWTAuthentication',
- )
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+    'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.AnonRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "5/minute",
+        "user": "10/minute",
+        "otp_verify": "5/minute",
+        "otp_register": "3/minute",
+    }
 }
 
 AUTH_USER_MODEL = "customer.CustomUser"

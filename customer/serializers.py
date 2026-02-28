@@ -68,14 +68,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             email=validated_data["email"],
             phone_number=validated_data.get("phone_number"),
-            #first_name = validated_data.get("firstname"),
-            #last_name = validated_data.get("lastname"),
             role = validated_data.get("role"),
             password=validated_data["password"],
         )
 
         return user
-
 
 
 class RegisterSuperUserSerializer(serializers.ModelSerializer):
@@ -240,11 +237,6 @@ class ResetPasswordSerializer(serializers.ModelSerializer):
 
         validate_password(attrs["password"])
         return attrs
-    
-    def validate_email(self, value):
-        if not User.objects.filter(email=value).exists:
-            raise serializers.ValidationError("Email doesn't exists.")
-        return value
 
     def create(self, validated_data):
 
@@ -258,4 +250,21 @@ class ResetPasswordSerializer(serializers.ModelSerializer):
             user.save()
     
         return user
+    
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+class PasswordResetVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    reset_token = serializers.CharField()
+    new_password = serializers.CharField(min_length=8)
+
+    
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
 

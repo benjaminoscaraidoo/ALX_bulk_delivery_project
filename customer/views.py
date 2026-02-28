@@ -1,18 +1,16 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout, get_user_model
-from django.contrib.auth.decorators import login_required
-from django.views import View
+from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from django.http import JsonResponse
-import jwt
+from .services import send_otp
+from rest_framework_simplejwt.exceptions import TokenError
+from .throttles import OTPVerifyThrottle, OTPRegisterThrottle
 from django.conf import settings
-from django.contrib import messages
 
 from .serializers import (
     DriverApprovalSerializer,
@@ -21,8 +19,12 @@ from .serializers import (
     MyTokenObtainPairSerializer,
     RegisterSerializer,
     RegisterSuperUserSerializer,
-    ResetPasswordSerializer)
-from customer.models import CustomUser, CustomerProfile, DriverProfile
+    ResetPasswordSerializer,
+    VerifyOTPSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetVerifySerializer,
+    PasswordResetConfirmSerializer)
+from customer.models import CustomUser, CustomerProfile, DriverProfile, EmailOTP
 
 # Create your views here.
 
@@ -48,6 +50,8 @@ class DriverProfileViewSet(viewsets.ModelViewSet):
     
     
 class RegisterAPIView(APIView):
+    throttle_classes = [OTPRegisterThrottle]
+
     permission_classes = [AllowAny]  # Allow public access
 
     def post(self, request):
@@ -56,32 +60,39 @@ class RegisterAPIView(APIView):
         if serializer.is_valid():
             user = serializer.save()
 
+            send_otp(user)
+
+            return Response({
+                "message": "OTP sent to your email"
+            }, status=status.HTTP_201_CREATED)
+        
+
             # Generate JWT tokens
-            refresh = RefreshToken.for_user(user)
+           # refresh = RefreshToken.for_user(user)
 
-            return Response(
-                {
-                    "message": "User registered successfully",
-                    "user": {
-                        "id": user.id,
-                        "email": user.email,
-                        "phone": user.phone_number,
-                        "role": user.role,
-                    },
-                    "tokens": {
-                        "access": str(refresh.access_token),
-                        "refresh": str(refresh),
-                    },
-                },
-                status=status.HTTP_201_CREATED,
+          #  return Response(
+           #     {
+             #       "message": "User registered successfully",
+           #         "user": {
+             #           "id": user.id,
+            #            "email": user.email,
+            #            "phone": user.phone_number,
+           #             "role": user.role,
+           #         },
+           #         "tokens": {
+           #             "access": str(refresh.access_token),
+          ##              "refresh": str(refresh),
+          #          },
+          #      },
+             #   status=status.HTTP_201_CREATED,
 
-            )
+            #)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-
 class RegisterSuperUserAPIView(APIView):
+    throttle_classes = [OTPRegisterThrottle]
     permission_classes = [AllowAny]  # Allow public access
 
     def post(self, request):
@@ -248,6 +259,173 @@ class ResetPasswordAPIView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-     
 
 
+class VerifyOTPAPIView(APIView):
+    throttle_classes = [OTPVerifyThrottle]
+
+    def post(self, request):
+
+        serializer = VerifyOTPSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        email = serializer.validated_data["email"]
+        otp_entered = serializer.validated_data["otp"]
+
+        try:
+            user = UserR.objects.get(email=email)
+        except UserR.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        otp_obj = EmailOTP.objects.filter(
+            user=user,
+            is_verified=False
+        ).last()
+
+        if not otp_obj:
+            return Response({"error": "No active OTP"}, status=400)
+
+        # 🔒 Check lock
+        if otp_obj.is_locked():
+            return Response(
+                {"error": "Too many failed attempts. OTP locked."},
+                status=403
+            )
+
+        # ⏳ Check expiry
+        if otp_obj.is_expired():
+            return Response(
+                {"error": "OTP expired"},
+                status=400
+            )
+
+        # ❌ Wrong OTP
+        if otp_obj.otp != otp_entered:
+            otp_obj.attempt_count += 1
+            otp_obj.save()
+
+            return Response(
+                {"error": f"Invalid OTP. Attempts left: {otp_obj.max_attempts - otp_obj.attempt_count}"},
+                status=400
+            )
+
+        # ✅ Success
+        user.is_active = True
+        user.save()
+
+        otp_obj.is_verified = True
+        otp_obj.save()
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "message": "Email verified",
+            "refresh": str(refresh),
+            "access": str(refresh.access_token)
+        })
+    
+
+
+class PasswordResetRequestAPIView(APIView):
+    throttle_classes = [OTPRegisterThrottle]  # reuse throttle
+
+    def post(self, request):
+
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        email = serializer.validated_data["email"]
+
+        try:
+            user = UserR.objects.get(email=email)
+        except UserR.DoesNotExist:
+            # Do NOT reveal if email exists
+            return Response({"message": "If account exists, OTP sent"})
+
+        # Delete old reset OTPs
+        EmailOTP.objects.filter(user=user, otp_purpose="password_reset").delete()
+
+        send_otp(user, otp_purpose="password_reset")
+
+        return Response({"message": "If account exists, OTP sent"})
+    
+
+class PasswordResetVerifyAPIView(APIView):
+    throttle_classes = [OTPVerifyThrottle]
+
+    def post(self, request):
+
+        serializer = PasswordResetVerifySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        email = serializer.validated_data["email"]
+        otp_entered = serializer.validated_data["otp"]
+
+        try:
+            user = UserR.objects.get(email=email)
+        except UserR.DoesNotExist:
+            return Response({"error": "Invalid request"}, status=400)
+
+        otp_obj = EmailOTP.objects.filter(
+            user=user,
+            otp_purpose="password_reset",
+            is_verified=False
+        ).last()
+
+        if not otp_obj:
+            return Response({"error": "Invalid OTP"}, status=400)
+
+        if otp_obj.is_locked():
+            return Response({"error": "Too many attempts"}, status=403)
+
+        if otp_obj.is_expired():
+            return Response({"error": "OTP expired"}, status=400)
+
+        if otp_obj.otp != otp_entered:
+            otp_obj.attempt_count += 1
+            otp_obj.save()
+            return Response({"error": "Invalid OTP"}, status=400)
+
+        # Mark OTP verified
+        otp_obj.is_verified = True
+        otp_obj.save()
+
+        # Issue short-lived reset token (5 minutes)
+        token = AccessToken.for_user(user)
+        token["scope"] = "password_reset"
+
+        return Response({
+            "reset_token": str(token)
+        })
+    
+
+class PasswordResetConfirmAPIView(APIView):
+
+    def post(self, request):
+
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        token = serializer.validated_data["reset_token"]
+        new_password = serializer.validated_data["new_password"]
+
+        try:
+            access = AccessToken(token)
+        except TokenError:
+            return Response({"error": "Invalid token"}, status=400)
+
+        if access.get("scope") != "password_reset":
+            return Response({"error": "Invalid scope"}, status=403)
+
+        user_id = access["user_id"]
+        user = UserR.objects.get(id=user_id)
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({"message": "Password reset successful"})

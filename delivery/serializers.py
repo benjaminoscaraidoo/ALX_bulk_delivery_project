@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.shortcuts import get_object_or_404
 from .models import Delivery, Payment
 from order.models import Package, Order
-from datetime import datetime,date
+from datetime import datetime
 from django.db import transaction
 
 class DeliverySerializer(serializers.ModelSerializer):
@@ -129,11 +129,6 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        """
-        We override create() because we're not passing an instance.
-        This is technically an UPDATE, but since no instance is passed,
-        DRF calls create().
-        """
 
         with transaction.atomic():
 
