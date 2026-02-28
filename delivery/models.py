@@ -1,18 +1,14 @@
 from django.db import models
 from order.models import Package
 import datetime
-import uuid
+from .utils import generate_delivery_id, generate_transaction_id
 from customer.models import DriverProfile
 
 # Create your models here.
 
-def generate_delivery_id():
-    return f"DEL{uuid.uuid4().hex[:8].upper()}"
 
-def generate_transaction_id():
-    return f"TXN{uuid.uuid4().hex[:8].upper()}"
-
-
+# Model for Delivery
+# This is linked to the Package for the orders
 class Delivery(models.Model):
 
     class Status(models.TextChoices):
@@ -51,7 +47,8 @@ class Delivery(models.Model):
         return self.id
     
 
-
+# Model for Payment
+# This is linked to the Package for the orders
 class Payment(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending"
