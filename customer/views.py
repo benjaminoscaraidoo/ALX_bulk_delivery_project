@@ -32,9 +32,12 @@ from customer.models import CustomUser, CustomerProfile, DriverProfile, EmailOTP
 
 UserR = get_user_model()
 
+# View to obtain token pair 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
+
+# View for Customer Profile
 class CustomerProfileViewSet(viewsets.ModelViewSet):
     serializer_class = CustomerProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -43,6 +46,7 @@ class CustomerProfileViewSet(viewsets.ModelViewSet):
         return CustomerProfile.objects.filter(user=self.request.user)
 
 
+# View for Driver Profile
 class DriverProfileViewSet(viewsets.ModelViewSet):
     serializer_class = DriverProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -51,7 +55,7 @@ class DriverProfileViewSet(viewsets.ModelViewSet):
         return DriverProfile.objects.filter(user=self.request.user)
     
     
-
+# View for Customer/Driver Registration request
 class RegisterRequestAPIView(APIView):
     throttle_classes = [OTPRegisterThrottle]  # reuse throttle
     permission_classes = [AllowAny]  # Allow public access
@@ -76,6 +80,7 @@ class RegisterRequestAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
+# View for SuperUser Registration request
 class RegisterSuperUserRequestAPIView(APIView):
     throttle_classes = [OTPRegisterThrottle]  # reuse throttle
     permission_classes = [AllowAny]  # Allow public access
@@ -101,6 +106,7 @@ class RegisterSuperUserRequestAPIView(APIView):
 
 
 
+# View for otp verification for registration
 class RegisterVerifyAPIView(APIView):
     throttle_classes = [OTPVerifyThrottle]
 
@@ -151,6 +157,7 @@ class RegisterVerifyAPIView(APIView):
         })
     
 
+# View for Otp confirmation for registration
 class RegisterConfirmAPIView(APIView):
 
     def post(self, request):
@@ -196,6 +203,7 @@ class RegisterConfirmAPIView(APIView):
             )
 
 
+# View for role based profile update for Customer/Driver
 class RoleBasedProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -268,6 +276,7 @@ class RoleBasedProfileAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# View for Driver approval after profile update is completed for admins
 class DriverApprovalAPIView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -306,75 +315,9 @@ class DriverApprovalAPIView(APIView):
             {"detail": f"Driver {profile.approval_status} successfully."},
             status=status.HTTP_200_OK
         )
-    
-
-class VerifyOTPAPIView(APIView):
-    throttle_classes = [OTPVerifyThrottle]
-
-    def post(self, request):
-
-        serializer = VerifyOTPSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=400)
-
-        email = serializer.validated_data["email"]
-        otp_entered = serializer.validated_data["otp"]
-
-        try:
-            user = UserR.objects.get(email=email)
-        except UserR.DoesNotExist:
-            return Response({"error": "User not found"}, status=404)
-
-        otp_obj = EmailOTP.objects.filter(
-            user=user,
-            is_verified=False
-        ).last()
-
-        if not otp_obj:
-            return Response({"error": "No active OTP"}, status=400)
-
-        # 🔒 Check lock
-        if otp_obj.is_locked():
-            return Response(
-                {"error": "Too many failed attempts. OTP locked."},
-                status=403
-            )
-
-        # ⏳ Check expiry
-        if otp_obj.is_expired():
-            return Response(
-                {"error": "OTP expired"},
-                status=400
-            )
-
-        # ❌ Wrong OTP
-        if otp_obj.otp != otp_entered:
-            otp_obj.attempt_count += 1
-            otp_obj.save()
-
-            return Response(
-                {"error": f"Invalid OTP. Attempts left: {otp_obj.max_attempts - otp_obj.attempt_count}"},
-                status=400
-            )
-
-        # ✅ Success
-        user.is_active = True
-        user.save()
-
-        otp_obj.is_verified = True
-        otp_obj.save()
-
-        refresh = RefreshToken.for_user(user)
-
-        return Response({
-            "message": "Email verified",
-            "refresh": str(refresh),
-            "access": str(refresh.access_token)
-        })
-    
 
 
+# View for Password reset request
 class PasswordResetRequestAPIView(APIView):
     throttle_classes = [OTPRegisterThrottle]  # reuse throttle
 
@@ -400,6 +343,7 @@ class PasswordResetRequestAPIView(APIView):
         return Response({"message": "If account exists, OTP sent"})
     
 
+# View for Password reset otp verification
 class PasswordResetVerifyAPIView(APIView):
     throttle_classes = [OTPVerifyThrottle]
 
@@ -449,7 +393,7 @@ class PasswordResetVerifyAPIView(APIView):
             "reset_token": str(token)
         })
     
-
+# View for Passord reset otp confirmation
 class PasswordResetConfirmAPIView(APIView):
 
     def post(self, request):

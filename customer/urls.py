@@ -5,13 +5,11 @@ from .views import (
     RoleBasedProfileAPIView,
     DriverApprovalAPIView,
     RegisterSuperUserRequestAPIView,
-    VerifyOTPAPIView,
     PasswordResetRequestAPIView,
     PasswordResetVerifyAPIView,
     PasswordResetConfirmAPIView,
     RegisterVerifyAPIView,
     RegisterConfirmAPIView)
-from . import views
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
@@ -30,7 +28,6 @@ urlpatterns = [
     path("api/v1/register_superuser/", RegisterSuperUserRequestAPIView.as_view(), name="api_register_superuser"),
     path("api/v1/profile/update/", RoleBasedProfileAPIView.as_view(), name="api_role_profile"),
     path("api/v1/admin/driver/approve/", DriverApprovalAPIView.as_view(), name="driver_approval"),
-    path("verify-otp/", VerifyOTPAPIView.as_view()),
 
       # JWT Auth
     path("api/v1/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
