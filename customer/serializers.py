@@ -42,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "email")
 
 
-
+# Serializer for Customer/Driver registration request
 class RegisterRequestSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
@@ -83,16 +83,19 @@ class RegisterRequestSerializer(serializers.ModelSerializer):
         return user
     
 
+# Serializer for registration verification of otp, this is for both customer/drivers and super users
 class RegisterVerifySerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
 
-    
+
+# Serializer for registration verification of otp, this is for both customer/drivers and super users  
 class RegisterConfirmSerializer(serializers.Serializer):
     register_token = serializers.CharField()
     email = serializers.EmailField()
 
 
+# Serializer for SuperUser registration request
 class RegisterSuperUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
@@ -110,7 +113,6 @@ class RegisterSuperUserSerializer(serializers.ModelSerializer):
         if attrs["password"] != attrs["password2"]:
             raise serializers.ValidationError({"password": "Passwords do not match."})
         
-
         validate_password(attrs["password"])
         return attrs
 
@@ -128,6 +130,7 @@ class RegisterSuperUserSerializer(serializers.ModelSerializer):
         return user
     
     
+# Serializer for Customer profile update after registration
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source="user.first_name", required=False)
@@ -172,6 +175,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         return instance
 
 
+# Serializer for Driver profile update after registration
 class DriverProfileSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source="user.first_name", required=False)
     last_name = serializers.CharField(source="user.last_name", required=False)
@@ -209,6 +213,7 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         return instance
 
 
+# Serializer for JWT token generation for login
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -233,55 +238,30 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 
+# Serializer for Driver approval after registration and driver profile update
 class DriverApprovalSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = ["approval_status", "rejection_reason"]
 
 
-
-class ResetPasswordSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True)
-    password2 = serializers.CharField(write_only=True, required=True)
-
-    class Meta:
-        model = CustomUser
-        fields = ["email","password", "password2"]
-
-    def validate(self, attrs):
-        if attrs["password"] != attrs["password2"]:
-            raise serializers.ValidationError({"password": "Passwords do not match."})
-        
-
-        validate_password(attrs["password"])
-        return attrs
-
-    def create(self, validated_data):
-
-        with transaction.atomic():
-
-            user = CustomUser.objects.select_for_update().get(
-                pk=validated_data["user"].pk
-            )
-            user.password=validated_data["password"]
-
-            user.save()
-    
-        return user
-    
-
+# Serializer for User password reset request
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()    
+
     
+# Serializer for User password otp verify
 class PasswordResetVerifySerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
 
+# Serializer for User password otp confirm
 class PasswordResetConfirmSerializer(serializers.Serializer):
     reset_token = serializers.CharField()
     new_password = serializers.CharField(min_length=8)
 
-    
+
+# Serializer for otp verification
 class VerifyOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
