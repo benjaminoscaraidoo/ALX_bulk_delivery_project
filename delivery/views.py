@@ -126,7 +126,11 @@ class DeliveryListAPIView(generics.ListAPIView):
     
     filterset_class = DeliveryFilter
     
-    search_fields = ['id', 'address', 'delivery_notes']
+    search_fields = [
+        'id', 
+        'address', 
+        'delivery_notes'
+        ]
 
     def get_queryset(self):
 

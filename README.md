@@ -307,3 +307,11 @@ Endpoints:
             "package_id": "PKGBC374761",
             "delivery_status": "picked_up"
         }
+
+    
+    Search Delivery:
+        GET /delivery/api/v1/delivery/?delivery_status=cancelled&package_id=1
+
+    
+    Search Package:
+        GET order/api/v1/package/?fragile=false&receiver_name=Adwoa

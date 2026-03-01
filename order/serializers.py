@@ -8,14 +8,21 @@ from django.db import transaction
 class PackageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Package
-        fields = [
+        fields = "__all__"
+        #fields = [
+         #   "description",
+          #  "dimensions",
+           # "fragile",
+            #"value",
+            #"receiver_name",
+            #"receiver_phone",
+        #]
+        read_only_fields = (
             "description",
-            "dimensions",
-            "fragile",
             "value",
             "receiver_name",
             "receiver_phone",
-        ]
+        )
 
     def create(self, validated_data):
 
@@ -274,3 +281,6 @@ class PackageDetailsUpdateSerializer(serializers.Serializer):
 
 
         return package
+    
+
+

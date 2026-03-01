@@ -14,7 +14,7 @@ from .serializers import (
     PackageDetailsUpdateSerializer,
     OrderCancelSerializer
 )
-from .filters import OrderFilter
+from .filters import OrderFilter,PackageFilter
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from customer.permissions import (
     IsCustomer,
@@ -181,3 +181,48 @@ class PackageDetailsUpdateAPIView(APIView):
                 },
                 status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+
+class PackageListAPIView(generics.ListAPIView):
+
+    serializer_class = PackageSerializer
+    permission_classes = [IsAuthenticated]
+
+    filter_backends = [
+        DjangoFilterBackend,
+        drf_filters.SearchFilter,
+        drf_filters.OrderingFilter,
+    ]
+
+    filterset_class = PackageFilter
+
+    search_fields = [
+        "id",
+        "description",
+        "receiver_name",
+        "receiver_phone",
+    ]
+
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.role == "admin":
+            return Package.objects.all()
+
+        if user.role == "driver":
+            return Package.objects.filter(
+                order_id__deliveries__rider=user
+            )
+
+        # customer
+        return Package.objects.filter(
+            order_id__customer_id=user
+        )
+    
+    ordering_fields = [
+        "value",
+    ]
+
+    ordering = ["-value"]

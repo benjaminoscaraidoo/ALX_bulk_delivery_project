@@ -12,7 +12,8 @@ class DeliveryFilter(filters.FilterSet):
     # Exact Field Filters
     delivery_status = filters.CharFilter(field_name="delivery_status")
     driver = filters.NumberFilter(field_name="rider")
+    package_id = filters.CharFilter(field_name="package_id__id")
 
     class Meta:
         model = Delivery
-        fields = ['delivery_status', 'driver', 'start_delivered_date', 'end_delivered_date', 'start_pickup_date', 'end_pickup_date']
+        fields = ['delivery_status', 'driver', 'package_id','start_delivered_date', 'end_delivered_date', 'start_pickup_date', 'end_pickup_date']
