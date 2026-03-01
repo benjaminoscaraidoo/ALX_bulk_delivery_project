@@ -93,7 +93,7 @@ DATABASES = {
     }
 }
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost","benjaminoscaraidoo.pythonanywhere.com"]
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
