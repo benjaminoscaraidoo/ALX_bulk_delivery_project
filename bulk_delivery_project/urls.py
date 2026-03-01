@@ -16,11 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path,include
-from rest_framework.routers import DefaultRouter
-from customer.views import CustomerProfileViewSet, DriverProfileViewSet
-#from . import views
-from delivery.views import DeliveryViewSet,PaymentViewSet
-from order.views import OrderViewSet, PackageViewSet
+
 
 
 
