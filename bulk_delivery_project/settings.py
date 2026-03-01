@@ -31,7 +31,7 @@ env.read_env(BASE_DIR / ".env")
 SECRET_KEY = 'django-insecure-!cqtz31i^^3-+aw4_0ak=clta2l!o=2#*1)5&8og+r&b%w8*4g'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = []
 
@@ -92,6 +92,8 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
