@@ -1,5 +1,7 @@
 Bulk Delivery Ordering Platform (Django)
 
+https://benjaminoscaraidoo.pythonanywhere.com/customer/api/
+
 A RESTful API built with Django and Django REST Framework where:
     Customers create orders
     Each order contains multiple packages
