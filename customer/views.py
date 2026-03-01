@@ -1,5 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework import status
@@ -31,6 +33,13 @@ from customer.models import CustomUser, CustomerProfile, DriverProfile, EmailOTP
 # Create your views here.
 
 UserR = get_user_model()
+
+
+
+
+@api_view(['GET'])
+def api_root(request):
+    return Response({"message": "Welcome to the Bulk Delivery API", "status": "success"})
 
 # View to obtain token pair 
 class MyTokenObtainPairView(TokenObtainPairView):

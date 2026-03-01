@@ -9,7 +9,8 @@ from .views import (
     PasswordResetVerifyAPIView,
     PasswordResetConfirmAPIView,
     RegisterVerifyAPIView,
-    RegisterConfirmAPIView)
+    RegisterConfirmAPIView,
+    api_root)
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
@@ -19,6 +20,7 @@ from rest_framework_simplejwt.views import (
 app_name = "customer"
 
 urlpatterns = [
+    path('api/', api_root),
     path("api/v1/register/request/", RegisterRequestAPIView.as_view(), name="api-register"),
     path("api/v1/register/verify/", RegisterVerifyAPIView.as_view(), name="api-register-verify"),
     path("api/v1/register/confirm/", RegisterConfirmAPIView.as_view(), name="api-register-confirm"),

@@ -24,20 +24,8 @@ from order.views import OrderViewSet, PackageViewSet
 
 
 
-router = DefaultRouter()
-router.register(r"profiles/customer", CustomerProfileViewSet, basename="customer-profile")
-router.register(r"profiles/driver", DriverProfileViewSet, basename="driver-profile")
-router.register(r"deliveries", DeliveryViewSet, basename="deliveries")
-router.register(r"payments", PaymentViewSet, basename="payments")
-router.register(r"orders", OrderViewSet, basename="orders")
-router.register(r"packages", PackageViewSet, basename="packages")
-
-
-
 urlpatterns = [
     path('admin/', admin.site.urls),
-
-    path('api/v1/', include(router.urls)),
     path('customer/', include('customer.urls')),
     path('order/', include('order.urls')),
     path('delivery/', include('delivery.urls')),
