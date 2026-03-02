@@ -12,7 +12,8 @@ from .serializers import (
     OrderAssignSerializer, 
     CreatePackagesSerializer,
     PackageDetailsUpdateSerializer,
-    OrderCancelSerializer
+    OrderCancelSerializer,
+    OrderUpdateSerializer
 )
 from .filters import OrderFilter,PackageFilter
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
@@ -20,7 +21,8 @@ from customer.permissions import (
     IsCustomer,
     IsOrderOwnerOrAdmin,
     IsAdmin,
-    IsCustomerProfileComplete
+    IsCustomerProfileComplete,
+    IsDriverProfileComplete
 )
 
 
@@ -226,3 +228,31 @@ class PackageListAPIView(generics.ListAPIView):
     ]
 
     ordering = ["-value"]
+
+
+
+class OrderPickupUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsDriverProfileComplete]
+
+    def put(self, request):
+        serializer = OrderUpdateSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            order = serializer.save()
+
+            return Response(
+                {
+                    "message": "All deliveries updated to picked_up successfully.",
+                    "order_id": order.id,
+                    "order_status": order.order_status,
+                },
+                status=status.HTTP_200_OK
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )

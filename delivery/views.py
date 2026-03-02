@@ -11,7 +11,8 @@ from .filters import DeliveryFilter
 from customer.permissions import (
     IsDriver,
     IsAssignedDriverOrAdmin,
-    IsDriverProfileComplete
+    IsDriverProfileComplete,
+    IsCustomerProfileComplete
 )
 from .models import Delivery,Payment
 from .serializers import DeliverySerializer,PaymentSerializer,CreateDeliveriesSerializer,DriverDeliveryUpdateSerializer
@@ -67,7 +68,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
 #View for Creating Deliveries
 class CreateDeliveriesAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsCustomerProfileComplete]
 
     def post(self, request):
         serializer = CreateDeliveriesSerializer(data=request.data)

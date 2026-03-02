@@ -5,7 +5,8 @@ from .views import (
     PackageDetailsUpdateAPIView,
     OrderCancelAPIView,
     OrderListAPIView,
-    PackageListAPIView
+    PackageListAPIView,
+    OrderPickupUpdateAPIView
     )
 from django.urls import path
 
@@ -17,6 +18,7 @@ urlpatterns = [
     path("api/v1/order/", OrderListAPIView.as_view(), name="search_order"),
     path("api/v1/package/", PackageListAPIView.as_view(), name="search_package"),
     path("api/v1/order/assign/", OrderAssignAPIView.as_view(), name="assign_order"),
+    path("api/v1/order/update/", OrderPickupUpdateAPIView.as_view(), name="update_order"),
     path("api/v1/order/cancel/", OrderCancelAPIView.as_view(), name="cancel_order"),
     path("api/v1/package/create/",CreatePackagesAPIView.as_view(),name="create_packages"),
     path("api/v1/package/update/",PackageDetailsUpdateAPIView.as_view(),name="update_packages"),
