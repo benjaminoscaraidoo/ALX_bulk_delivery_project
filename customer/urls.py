@@ -20,7 +20,7 @@ from rest_framework_simplejwt.views import (
 app_name = "customer"
 
 urlpatterns = [
-    path('api/', api_root),
+    path('', api_root),
     path("v1/register/request/", RegisterRequestAPIView.as_view(), name="api-register"),
     path("v1/register/verify/", RegisterVerifyAPIView.as_view(), name="api-register-verify"),
     path("v1/register/confirm/", RegisterConfirmAPIView.as_view(), name="api-register-confirm"),
