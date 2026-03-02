@@ -1,6 +1,6 @@
 Bulk Delivery Ordering Platform (Django)
 
-https://benjaminoscaraidoo.pythonanywhere.com/customer/api/
+https://benjaminoscaraidoo.pythonanywhere.com/api/
 
 A RESTful API built with Django and Django REST Framework where:
     Customers create orders
@@ -86,7 +86,7 @@ Architecture Flow:
 Endpoints:
     Registration:
         Super User:
-            POST /customer/api/v1/register_superuser/
+            POST /v1/register_superuser/
 
             REQUEST JSON:
             {
@@ -99,7 +99,7 @@ Endpoints:
             }
         
         Customer/Driver:
-            POST /customer/api/v1/register/request/
+            POST /v1/register/request/
 
             REQUEST JSON:
             {
@@ -111,7 +111,7 @@ Endpoints:
             }
 
         OTP Verification:
-            POST /customer/api/v1/register/verify/
+            POST /v1/register/verify/
 
             REQUEST JSON:
             {
@@ -120,7 +120,7 @@ Endpoints:
             }
 
         Token Confirmation:
-            POST /customer/api/v1/register/confirm/
+            POST /v1/register/confirm/
 
             REQUEST JSON:
             {
@@ -130,7 +130,7 @@ Endpoints:
 
 
     Login:
-        POST /customer/api/v1/auth/login/
+        POST /v1/auth/login/
 
         REQUEST JSON:
         {
@@ -140,7 +140,7 @@ Endpoints:
 
 
     Token Refresh:
-        POST /customer/api/v1/auth/token/refresh/
+        POST /v1/auth/token/refresh/
 
         REQUEST JSON:
             {
@@ -149,7 +149,7 @@ Endpoints:
 
 
     Password Reset Request:
-        POST /customer/api/v1/password-reset/request/
+        POST /v1/password-reset/request/
 
         REQUEST JSON:
             {
@@ -158,7 +158,7 @@ Endpoints:
 
 
     Password Reset OTP Verification:
-        POST /customer/api/v1/password-reset/verify/
+        POST /v1/password-reset/verify/
 
         REQUEST JSON:
            {
@@ -168,7 +168,7 @@ Endpoints:
             }
 
     Password Rest Token Confirmation:
-        POST /customer/api/v1/password-reset/confirm/
+        POST /v1/password-reset/confirm/
 
         REQUEST JSON:
             {
@@ -178,7 +178,7 @@ Endpoints:
 
 
     Customer Profile Update:
-        PUT /customer/api/v1/profile/update/
+        PUT /v1/profile/update/
 
         REQUEST JSON:
             {
@@ -189,7 +189,7 @@ Endpoints:
             }
 
     Driver Profile Update:
-        PUT /customer/api/v1/profile/update/
+        PUT /v1/profile/update/
 
         REQUEST JSON:
         {
@@ -201,7 +201,7 @@ Endpoints:
         }
 
     Driver Admin Approval:
-        PUT /customer/api/v1/admin/driver/approve/
+        PUT /v1/admin/driver/approve/
 
         REQUEST JSON:
         {
@@ -210,7 +210,7 @@ Endpoints:
         }
 
     Order Creation:
-        POST /order/api/v1/create/
+        POST /v1/order/create/
 
         REQUEST JSON:
         {
@@ -218,7 +218,7 @@ Endpoints:
         }
 
     Cancel Order:
-        PUT /order/api/v1/order/cancel/
+        PUT /v1/order/cancel/
 
         REQUEST JSON:
         {
@@ -227,7 +227,7 @@ Endpoints:
         }
 
     Order Driver Assignment:
-        PUT /order/api/v1/order/assign/
+        PUT /v1/order/assign/
 
         REQUEST JSON:
         {
@@ -235,17 +235,23 @@ Endpoints:
             "driver_email":"asango@gmail.com" 
         }
 
-    Search Orders:
-        GET /order/api/v1/order/
+    
+    Order Delivery Update:
+        PUT /v1/order/update/
 
         REQUEST JSON:
         {
-            "id": "9"
+            "status":"picked_up",
+            "order_id":"ORDBD58268F"
         }
+        
 
-    
+    Search Orders:
+        GET /v1/search/order/?id=9
+
+
     Create Packages:
-        POST /order/api/v1/package/create/
+        POST /v1/package/create/
 
         REQUEST JSON:
         {
@@ -272,7 +278,7 @@ Endpoints:
 
 
     Update Package Receiver details:
-        PUT /order/api/v1/package/update/
+        PUT /v1/package/update/
 
         REQUEST JSON:
         {
@@ -283,7 +289,7 @@ Endpoints:
 
 
     Create Deliveries for Packages:
-        POST /delivery/api/v1/create/
+        POST /v1/delivery/create/
 
         REQUEST JSON:
         {
@@ -302,7 +308,7 @@ Endpoints:
 
 
     Driver Delivery Update:
-        PUT /delivery/api/v1/updatedelivery/
+        PUT /v1/delivery/update/
 
         REQUEST JSON:
         {
@@ -312,8 +318,8 @@ Endpoints:
 
     
     Search Delivery:
-        GET /delivery/api/v1/delivery/?delivery_status=cancelled&package_id=1
+        GET /v1/search/delivery/?delivery_status=cancelled&package_id=1
 
     
     Search Package:
-        GET order/api/v1/package/?fragile=false&receiver_name=Adwoa
+        GET /v1/search/package/?fragile=false&receiver_name=Adwoa
