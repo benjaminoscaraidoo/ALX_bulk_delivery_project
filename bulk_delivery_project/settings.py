@@ -121,7 +121,6 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
-
 #Add Session logout time for admin site
 AUTO_LOGOUT = {'IDLE_TIME' : 1800, 'REDIRECT_TO_LOGIN_IMMEDIATELY': True,  
                'MESSAGE':'Session Expired. Please Login again.',
