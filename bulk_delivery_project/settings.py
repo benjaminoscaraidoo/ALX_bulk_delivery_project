@@ -121,6 +121,13 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
+
+#Add Session logout time for admin site
+AUTO_LOGOUT = {'IDLE_TIME' : 1800, 'REDIRECT_TO_LOGIN_IMMEDIATELY': True,  
+               'MESSAGE':'Session Expired. Please Login again.',
+               }
+
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
