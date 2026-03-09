@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
 ]
@@ -167,7 +168,15 @@ REST_FRAMEWORK = {
         "user": "10/minute",
         "otp_verify": "5/minute",
         "otp_register": "3/minute",
-    }
+    },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Bulk Delivery Ordering Platform API',
+    'DESCRIPTION': 'API for managing orders, packages, deliveries, customers and drivers.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 AUTH_USER_MODEL = "customer.CustomUser"

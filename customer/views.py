@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView, TokenRefreshView
 from .services import send_otp
 from rest_framework_simplejwt.exceptions import TokenError
 from .throttles import OTPVerifyThrottle, OTPRegisterThrottle
@@ -29,7 +29,13 @@ from .serializers import (
     PasswordResetVerifySerializer,
     PasswordResetConfirmSerializer)
 from customer.models import CustomUser, CustomerProfile, DriverProfile, EmailOTP
-
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiExample,
+    OpenApiResponse,
+    OpenApiParameter
+)
+from rest_framework_simplejwt.serializers import TokenVerifySerializer,TokenRefreshSerializer
 # Create your views here.
 
 UserR = get_user_model()
@@ -44,6 +50,94 @@ def api_root(request):
 # View to obtain token pair 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+
+    @extend_schema(
+        tags=["Authentication"],
+        summary="User Login",
+        description="Authenticate user and return JWT access and refresh tokens.",
+        request=MyTokenObtainPairSerializer,
+        responses={200: OpenApiResponse(description="JWT tokens returned")},
+        examples=[
+            OpenApiExample(
+                "Login Request",
+                value={
+                    "email": "user@gmail.com",
+                    "password": "StrongPassword"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Login Response",
+                value={
+                    "access": "eyJhbGc...",
+                    "refresh": "eyJhbGc..."
+                },
+                response_only=True,
+            ),
+        ],
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+    
+
+
+class MyTokenVerifyView(TokenVerifyView):
+    serializer_class = TokenVerifySerializer
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Token Verification",
+        description="Verify generated JWT tokens.",
+        request=TokenVerifySerializer,
+        responses={200: OpenApiResponse(description="JWT tokens verified")},
+        examples=[
+            OpenApiExample(
+                "Token Verification Request",
+                value={
+                    "token": "ak6ahags...",
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Token Verification Response",
+                value={
+                    "message":"Token Verified"
+                },
+                response_only=True,
+            ),
+        ],
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+    
+
+class MyTokenRefreshView(TokenRefreshView):
+    serializer_class = TokenRefreshSerializer
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Token Refresh",
+        description="Refresh generated access JWT tokens.",
+        request=TokenRefreshSerializer,
+        responses={200: OpenApiResponse(description="JWT token Refresh")},
+        examples=[
+            OpenApiExample(
+                "Token Refresh Request",
+                value={
+                    "refresh": "ak6ahags..."
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Token Refresh Response",
+                value={
+                    "access": "ak6ahags...",
+                    "refresh": "ak6ahags..."
+                },
+                response_only=True,
+            ),
+        ],
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
 
 
 # View for Customer Profile
@@ -68,6 +162,35 @@ class DriverProfileViewSet(viewsets.ModelViewSet):
 class RegisterRequestAPIView(APIView):
     throttle_classes = [OTPRegisterThrottle]  # reuse throttle
     permission_classes = [AllowAny]  # Allow public access
+
+
+    @extend_schema(
+        tags=["Registration"],
+        summary="Customer/Driver Register Request",
+        description="Registration Request for Customers and Drivers",
+        request=RegisterRequestSerializer,
+        responses={200: OpenApiResponse(description="If valid email, OTP sent")},
+        examples=[
+            OpenApiExample(
+                "Registration Request",
+                value={
+                    "email": "user@gmail.com",
+                    "phone_number": "+2332422...",
+                    "role": "customer",
+                    "password": "StrongPassword",
+                    "password2": "StrongPassword"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Customer/Driver RegisterRequest Response",
+                value={
+                    "If valid email, OTP sent"
+                },
+                response_only=True,
+            ),
+        ],
+    )
 
     def post(self, request):
 
@@ -94,6 +217,35 @@ class RegisterSuperUserRequestAPIView(APIView):
     throttle_classes = [OTPRegisterThrottle]  # reuse throttle
     permission_classes = [AllowAny]  # Allow public access
 
+    @extend_schema(
+        tags=["Registration"],
+        summary="SuperUser Register Request",
+        description="Registration Request for SuperUsers",
+        request=RegisterSuperUserSerializer,
+        responses={200: OpenApiResponse(description="If valid email, OTP sent")},
+        examples=[
+            OpenApiExample(
+                "Registration SuperUser Request",
+                value={
+                    "email": "user@gmail.com",
+                    "phone_number": "+2332422...",
+                    "first_name": "Moses",
+                    "last_name": "Azaa",
+                    "password": "StrongPassword",
+                    "password2": "StrongPassword"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "SuperUser Registration Response",
+                value={
+                    "If valid email, OTP sent"
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def post(self, request):
 
         serializer = RegisterSuperUserSerializer(data=request.data)
@@ -114,10 +266,36 @@ class RegisterSuperUserRequestAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 # View for otp verification for registration
 class RegisterVerifyAPIView(APIView):
     throttle_classes = [OTPVerifyThrottle]
+
+    @extend_schema(
+        tags=["Registration"],
+        summary="Verify Otp",
+        description="Verify Registration OTP",
+        request=RegisterVerifySerializer,
+        responses={200: OpenApiResponse(description="register_token: eyJhbGci...")},
+        examples=[
+            OpenApiExample(
+                "Register OTP Verification",
+                value={
+                    "email": "user@gmail.com",
+                    "otp": "987650"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "VerifyRegistrationOTP Response",
+                value={
+                    "register_token": "eyJhbGci..."
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
+    
 
     def post(self, request):
 
@@ -162,12 +340,48 @@ class RegisterVerifyAPIView(APIView):
         token["scope"] = "registration"
 
         return Response({
-            "reset_token": str(token)
+            "register_token": str(token)
         })
     
 
 # View for Otp confirmation for registration
 class RegisterConfirmAPIView(APIView):
+
+    @extend_schema(
+        tags=["Registration"],
+        summary="Confirm Registeration Token",
+        description="Confirm token for Registration",
+        request=RegisterConfirmSerializer,
+        responses={200: OpenApiResponse(description="User registered successfully")},
+        examples=[
+            OpenApiExample(
+                "Registration Token Confirmation",
+                value={
+                    "email": "user@gmail.com",
+                    "register_token": "eyJhbGci..."
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "VerifyRegistrationOTP Response",
+                value={
+                        "message": "User registered successfully",
+                        "user": {
+                            "id": 17,
+                            "email": "user@gmail.com",
+                            "phone": "+2332422...",
+                            "role": "customer"
+                        },
+                        "tokens": {
+                                    "access": "eyJhbGc...",
+                                    "refresh": "eyJhbGci..."
+                        }
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
 
     def post(self, request):
 
@@ -233,6 +447,44 @@ class RoleBasedProfileAPIView(APIView):
             {"error": "Invalid user role."},
             status=status.HTTP_400_BAD_REQUEST
         )
+    
+    @extend_schema(
+        tags=["Registration"],
+        summary="Customer/Driver Porfile Update",
+        description="Complete Profile for Customers/Drivers",
+        request=RegisterConfirmSerializer,
+        responses={200: OpenApiResponse(description="Profile Updated Successfully")},
+        examples=[
+            OpenApiExample(
+                "Customer Profile Update Request",
+                value={
+                    "first_name": "Mark",
+                    "last_name": "Tagoe",
+                    "address": "a567/16 Dama Street"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Driver Profile Update Request",
+                value={
+                    "first_name": "Issah",
+                    "last_name": "Mussah",
+                    "vehicle_type": "Royal Motor",
+                    "vehicle_number": "MT-1076-22",
+                    "license_number": "DV100188211222"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Driver Profile Update Response",
+                value={
+                        "message": "Profile updated successfully"
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
 
     def put(self, request):
         user = request.user
@@ -289,10 +541,38 @@ class RoleBasedProfileAPIView(APIView):
 class DriverApprovalAPIView(APIView):
     permission_classes = [IsAdminUser]
 
+    @extend_schema(
+        tags=["Registration"],
+        summary="Driver Approval",
+        description="Approve new drivers with valid details",
+        request=DriverApprovalSerializer,
+        responses={200: OpenApiResponse(description="Driver Approved successfully")},
+        examples=[
+            OpenApiExample(
+                "New Driver Approval Confirmation",
+                value={
+                    "email": "user@gmail.com",
+                    "action": "approved"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "New Driver Approval Response",
+                value={
+                        "message": "Driver *new approved successfully"
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def put(self, request):
+        serializer = DriverApprovalSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
         try:
-            email = request.data.get("email")
-            action = request.data.get("action")
+            email = serializer.validated_data["email"]
+            action = serializer.validated_data["action"]
 
             if not email:
                 return Response(
@@ -329,6 +609,31 @@ class DriverApprovalAPIView(APIView):
 # View for Password reset request
 class PasswordResetRequestAPIView(APIView):
     throttle_classes = [OTPRegisterThrottle]  # reuse throttle
+       
+    @extend_schema(
+        tags=["Password Reset"],
+        summary="Password Reset Request",
+        description="Password reset request for users.",
+        request=PasswordResetRequestSerializer,
+        responses={200: OpenApiResponse(description="If account exists, OTP sent")},
+        examples=[
+            OpenApiExample(
+                "Password Reset Request",
+                value={
+                    "email": "user@gmail.com",
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Password Reset Request Response",
+                value={
+                    "message": "If account exists, OTP sent"
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
 
     def post(self, request):
 
@@ -355,6 +660,32 @@ class PasswordResetRequestAPIView(APIView):
 # View for Password reset otp verification
 class PasswordResetVerifyAPIView(APIView):
     throttle_classes = [OTPVerifyThrottle]
+
+
+    @extend_schema(
+        tags=["Password Reset"],
+        summary="Password Reset Verify Otp",
+        description="Verify Password Reset OTP",
+        request=PasswordResetVerifySerializer,
+        responses={200: OpenApiResponse(description="reset_token: eyJhbGci...")},
+        examples=[
+            OpenApiExample(
+                "Password Reset OTP Verification",
+                value={
+                    "email": "user@gmail.com",
+                    "otp": "987650"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Verify Password Reset OTP Response",
+                value={
+                    "reset_token": "eyJhbGci..."
+                },
+                response_only=True,
+            ),
+        ],
+    )
 
     def post(self, request):
 
@@ -404,6 +735,31 @@ class PasswordResetVerifyAPIView(APIView):
     
 # View for Passord reset otp confirmation
 class PasswordResetConfirmAPIView(APIView):
+
+    @extend_schema(
+        tags=["Password Reset"],
+        summary="Confirm Password Reset Token",
+        description="Confirm token for Password Reset",
+        request=RegisterConfirmSerializer,
+        responses={200: OpenApiResponse(description="Password Reset successful")},
+        examples=[
+            OpenApiExample(
+                "Password Reset Token Confirmation",
+                value={
+                    "reset_token": "eyJhbGci...",
+                    "new_password": "StrongerPassword"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Password Reset Token Confirmation Response",
+                value={
+                        "message": "Password reset successful"
+                },
+                response_only=True,
+            ),
+        ],
+    )
 
     def post(self, request):
 
