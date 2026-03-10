@@ -24,6 +24,12 @@ from customer.permissions import (
     IsCustomerProfileComplete,
     IsDriverProfileComplete
 )
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiExample,
+    OpenApiResponse,
+    OpenApiParameter
+)
 
 
 UserR = get_user_model()
@@ -63,6 +69,32 @@ class PackageViewSet(viewsets.ModelViewSet):
 class OrderCreateAPIView(APIView):
     permission_classes = [IsAuthenticated,IsCustomerProfileComplete]
 
+    @extend_schema(
+        tags=["Orders"],
+        summary="Create Order",
+        description="Create a new Order by a customer.",
+        request=CreatePackagesSerializer,
+        responses={200: OpenApiResponse(description="Order created Successfully")},
+        examples=[
+            OpenApiExample(
+                "Create Order Request",
+                value={
+                        "pickup_address": "Lapaz Accra"
+                    },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Create Order Response",
+                value={
+                        "id": "ORDBD5...",
+                        "Pickup_address": "Lapaz Accra",
+                        "order_status": "pending"                      
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def post(self, request):
         serializer = OrderCreateSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -82,6 +114,31 @@ class OrderCreateAPIView(APIView):
 class OrderAssignAPIView(APIView):
     permission_classes = [IsAdminUser]
 
+    @extend_schema(
+        tags=["Admin"],
+        summary="Assign Driver to Order",
+        description="Assign a driver to deliver packages for an Order.",
+        request=CreatePackagesSerializer,
+        responses={200: OpenApiResponse(description="Order Assigned to Driver Successfully")},
+        examples=[
+            OpenApiExample(
+                "Assign Driver to Order Request",
+                value={
+                        "order_id":"ORD383...",
+                        "driver_email":"asango@gmail.com" 
+                    },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Assign Driver To Order Response",
+                value={
+                    "detail": "Order ORDB... Driver assigned successfully"                        
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def put(self, request):
         try:
             order_id = request.data.get("order_id")
@@ -100,6 +157,33 @@ class OrderAssignAPIView(APIView):
 class OrderCancelAPIView(APIView):
     permission_classes = [IsAuthenticated,IsCustomerProfileComplete]
 
+    @extend_schema(
+        tags=["Orders"],
+        summary="Cancel Order",
+        description="Cancel a created Order.",
+        request=CreatePackagesSerializer,
+        responses={200: OpenApiResponse(description="Order cancelled Successfully")},
+        examples=[
+            OpenApiExample(
+                "Cancel Order Request",
+                value={
+                    "order_id" :"ORDB...",
+                    "cancel_reason":"Mistaken Order"
+                    },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Create Package Response",
+                value={
+                    "id": "ORDB...", 
+                    "Order Status":"cancelled"
+                        
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def put(self, request):
         serializer = OrderCancelSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -113,7 +197,11 @@ class OrderCancelAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-
+@extend_schema(
+    tags=["Orders"],
+    summary="Search Orders",
+    description="Returns Orders depending on the logged-in user's role."
+)
 # View for order filtering search
 class OrderListAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
@@ -150,6 +238,52 @@ class OrderListAPIView(generics.ListAPIView):
 class CreatePackagesAPIView(APIView):
     permission_classes = [IsAuthenticated, IsCustomerProfileComplete]
 
+    @extend_schema(
+        tags=["Packages"],
+        summary="Create Packages",
+        description="Create new packages for Orders.",
+        request=CreatePackagesSerializer,
+        responses={200: OpenApiResponse(description="Packages created Successfully")},
+        examples=[
+            OpenApiExample(
+                "Create Package Request",
+                value={
+                    "order_id" :"ORDB...",
+                        "packages": [
+                            {
+                                "description" : "phone",
+                                "dimensions" : "Big" ,
+                                "value" : "6000",
+                                "fragile" : "False",
+                                "receiver_name" : "Akua mansa",
+                                "receiver_phone" : "+2332434..."
+                            },
+                            {
+                                "description" : "Food",
+                                "dimensions" : "Small" ,
+                                "value" : "250",
+                                "fragile" : "True",
+                                "receiver_name" : "Mark Stone",
+                                "receiver_phone" : "+2332432..."
+                            }
+                        ]
+                    },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Create Package Response",
+                value={
+                        "detail": "2 packages created successfully.",
+                        "package_ids": [
+                                "PKGF7...",
+                                "PKGE6..."
+                        ]
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def post(self, request):
         serializer = CreatePackagesSerializer(
             data=request.data,
@@ -171,6 +305,34 @@ class CreatePackagesAPIView(APIView):
 class PackageDetailsUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsCustomerProfileComplete]
 
+    @extend_schema(
+        tags=["Packages"],
+        summary="Updage Package Details",
+        description="Update Receiver Details for a package.",
+        request=CreatePackagesSerializer,
+        responses={200: OpenApiResponse(description="Packages updated Successfully")},
+        examples=[
+            OpenApiExample(
+                "Update Package Request",
+                value={
+                        "package_id": "PKGBC...",
+                        "receiver_name" : "Akua mansa",
+                        "receiver_phone" : "+2332768..."
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Update Package Response",
+                value={
+                    "id":  "PKGBC...",
+                    "Receiver Name":"Akua mansa",
+                    "Receiver Phone":"+2332768..."
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def put(self, request):
         serializer = PackageDetailsUpdateSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -185,7 +347,11 @@ class PackageDetailsUpdateAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-
+@extend_schema(
+    tags=["Packages"],
+    summary="Search Packages",
+    description="Returns Packages depending on the logged-in user's role."
+)
 class PackageListAPIView(generics.ListAPIView):
 
     serializer_class = PackageSerializer
@@ -233,6 +399,33 @@ class PackageListAPIView(generics.ListAPIView):
 
 class OrderPickupUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsDriverProfileComplete]
+
+    @extend_schema(
+        tags=["Orders"],
+        summary="Order Pickup Update",
+        description="Update pickeup status by Driver.",
+        request=CreatePackagesSerializer,
+        responses={200: OpenApiResponse(description="Order status updated Successfully")},
+        examples=[
+            OpenApiExample(
+                "Order Pickup Status Request",
+                value={
+                        "status":"picked_up",
+                        "order_id":"ORDBD5..."
+                    },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Order Pickup Status Response",
+                value={
+                    "message": "All deliveries updated to picked_up successfully.",
+                    "order_id": "ORDBD5...",
+                    "order_status": "picked_up"    
+                },
+                response_only=True,
+            ),
+        ],
+    )
 
     def put(self, request):
         serializer = OrderUpdateSerializer(
