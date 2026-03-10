@@ -42,7 +42,11 @@ UserR = get_user_model()
 
 
 
-
+@extend_schema(
+    tags=["System"],
+    summary="API Root",
+    description="Health check endpoint for Bulk Delivery API",
+)
 @api_view(['GET'])
 def api_root(request):
     return Response({"message": "Welcome to the Bulk Delivery API", "status": "success"})
@@ -163,33 +167,15 @@ class RegisterRequestAPIView(APIView):
     throttle_classes = [OTPRegisterThrottle]  # reuse throttle
     permission_classes = [AllowAny]  # Allow public access
 
-
     @extend_schema(
         tags=["Registration"],
-        summary="Customer/Driver Register Request",
-        description="Registration Request for Customers and Drivers",
+        summary="Register Customer or Driver",
+        description="Creates a registration request and sends OTP to email.",
         request=RegisterRequestSerializer,
-        responses={200: OpenApiResponse(description="If valid email, OTP sent")},
-        examples=[
-            OpenApiExample(
-                "Registration Request",
-                value={
-                    "email": "user@gmail.com",
-                    "phone_number": "+2332422...",
-                    "role": "customer",
-                    "password": "StrongPassword",
-                    "password2": "StrongPassword"
-                },
-                request_only=True,
-            ),
-            OpenApiExample(
-                "Customer/Driver RegisterRequest Response",
-                value={
-                    "If valid email, OTP sent"
-                },
-                response_only=True,
-            ),
-        ],
+        responses={
+            201: OpenApiResponse(description="If valid email,OTP sent"),
+            400: OpenApiResponse(description="Invalid request"),
+        },
     )
 
     def post(self, request):
@@ -272,31 +258,24 @@ class RegisterVerifyAPIView(APIView):
 
     @extend_schema(
         tags=["Registration"],
-        summary="Verify Otp",
-        description="Verify Registration OTP",
+        summary="Verify Registration OTP",
         request=RegisterVerifySerializer,
-        responses={200: OpenApiResponse(description="register_token: eyJhbGci...")},
+        responses={
+            200: OpenApiResponse(description="OTP verified"),
+            400: OpenApiResponse(description="Invalid OTP"),
+            403: OpenApiResponse(description="Too many attempts"),
+        },
         examples=[
             OpenApiExample(
-                "Register OTP Verification",
+                "OTP Verification",
                 value={
                     "email": "user@gmail.com",
-                    "otp": "987650"
+                    "otp": "123456"
                 },
                 request_only=True,
-            ),
-            OpenApiExample(
-                "VerifyRegistrationOTP Response",
-                value={
-                    "register_token": "eyJhbGci..."
-                },
-                response_only=True,
-            ),
+            )
         ],
     )
-
-    
-
     def post(self, request):
 
         serializer = RegisterVerifySerializer(data=request.data)
@@ -349,39 +328,10 @@ class RegisterConfirmAPIView(APIView):
 
     @extend_schema(
         tags=["Registration"],
-        summary="Confirm Registeration Token",
-        description="Confirm token for Registration",
+        summary="Confirm Registration",
         request=RegisterConfirmSerializer,
-        responses={200: OpenApiResponse(description="User registered successfully")},
-        examples=[
-            OpenApiExample(
-                "Registration Token Confirmation",
-                value={
-                    "email": "user@gmail.com",
-                    "register_token": "eyJhbGci..."
-                },
-                request_only=True,
-            ),
-            OpenApiExample(
-                "VerifyRegistrationOTP Response",
-                value={
-                        "message": "User registered successfully",
-                        "user": {
-                            "id": 17,
-                            "email": "user@gmail.com",
-                            "phone": "+2332422...",
-                            "role": "customer"
-                        },
-                        "tokens": {
-                                    "access": "eyJhbGc...",
-                                    "refresh": "eyJhbGci..."
-                        }
-                },
-                response_only=True,
-            ),
-        ],
+        responses={201: OpenApiResponse(description="User registered")},
     )
-
 
     def post(self, request):
 
@@ -429,7 +379,12 @@ class RegisterConfirmAPIView(APIView):
 # View for role based profile update for Customer/Driver
 class RoleBasedProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
-
+    
+    @extend_schema(
+        tags=["Profiles"],
+        summary="Get User Profile",
+        responses={200: OpenApiResponse(description="User profile")},
+    )
     def get(self, request):
         user = request.user
 
@@ -449,7 +404,7 @@ class RoleBasedProfileAPIView(APIView):
         )
     
     @extend_schema(
-        tags=["Registration"],
+        tags=["Profiles"],
         summary="Customer/Driver Porfile Update",
         description="Complete Profile for Customers/Drivers",
         request=RegisterConfirmSerializer,
@@ -542,7 +497,7 @@ class DriverApprovalAPIView(APIView):
     permission_classes = [IsAdminUser]
 
     @extend_schema(
-        tags=["Registration"],
+        tags=["Admin"],
         summary="Driver Approval",
         description="Approve new drivers with valid details",
         request=DriverApprovalSerializer,

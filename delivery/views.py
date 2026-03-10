@@ -16,6 +16,12 @@ from customer.permissions import (
 )
 from .models import Delivery,Payment
 from .serializers import DeliverySerializer,PaymentSerializer,CreateDeliveriesSerializer,DriverDeliveryUpdateSerializer
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiExample,
+    OpenApiResponse,
+    OpenApiParameter
+)
 
 # Create your views here.
 
@@ -26,6 +32,23 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         permissions.IsAuthenticated,
         IsAssignedDriverOrAdmin,
     ]
+    @extend_schema(
+        tags=["Delivery"],
+        summary="List Deliveries",
+        description="Retrieve deliveries depending on user role (driver, admin, or customer).",
+        responses={200: DeliverySerializer(many=True)},
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        tags=["Delivery"],
+        summary="Retrieve Delivery",
+        description="Get details of a specific delivery.",
+        responses={200: DeliverySerializer},
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
     def get_queryset(self):
         user = self.request.user
@@ -36,6 +59,12 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         #return Delivery.objects.filter(order__customer=user)
         return Delivery.objects.filter(package_id__order_id__customer_id=user)
 
+    @extend_schema(
+        tags=["Delivery"],
+        summary="Pickup Delivery",
+        description="Driver marks a delivery as picked up.",
+        responses={200: OpenApiResponse(description="Delivery picked up")},
+    )
     @action(detail=True, methods=["put"])
     def pickup(self, request, pk=None):
         delivery = self.get_object()
@@ -44,6 +73,13 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         delivery.save()
         return Response({"status": "picked up"})
 
+
+    @extend_schema(
+        tags=["Delivery"],
+        summary="Complete Delivery",
+        description="Driver marks a delivery as delivered.",
+        responses={200: OpenApiResponse(description="Delivery delivered")},
+    )
     @action(detail=True, methods=["put"])
     def deliver(self, request, pk=None):
         delivery = self.get_object()
@@ -69,6 +105,44 @@ class PaymentViewSet(viewsets.ModelViewSet):
 #View for Creating Deliveries
 class CreateDeliveriesAPIView(APIView):
     permission_classes = [IsCustomerProfileComplete]
+
+    @extend_schema(
+        tags=["Delivery"],
+        summary="Create Delivery",
+        description="Create new deliveries for customers.",
+        request=CreateDeliveriesSerializer,
+        responses={200: OpenApiResponse(description="Deliveries Created Successfully")},
+        examples=[
+            OpenApiExample(
+                "Create Deliveries Request",
+                value={
+                        "deliveries": [
+                                {
+                                    "package_id":"PKGE68...",
+                                    "address" : "Accra Mall Gate 2"
+
+                                },
+                                {
+                                    "package_id":"PKGF79...",
+                                    "address" : "Sakaman junction"
+                                }
+                    ]
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Create Deliveries Response",
+                value={
+                        "detail": "2 deliveries created successfully.",
+                            "delivery_ids": [
+                                    "DEL4D7...",
+                                    "DEL5A7..."
+                        ]
+                },
+                response_only=True,
+            ),
+        ],
+    )
 
     def post(self, request):
         serializer = CreateDeliveriesSerializer(data=request.data)
@@ -98,13 +172,40 @@ class CreateDeliveriesAPIView(APIView):
 class DriverDeliveryUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsDriverProfileComplete]
 
+    @extend_schema(
+        tags=["Delivery"],
+        summary="Driver Update Delivery",
+        description="Delivery status update by drivers.",
+        request=DriverDeliveryUpdateSerializer,
+        responses={200: OpenApiResponse(description="Delivery Status Updated Successfully")},
+        examples=[
+            OpenApiExample(
+                "Update Delivery Status Request",
+                value={
+                        "package_id":"PKGE68...",
+                        "delivery_status" : "picked_up"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Update Delivery Status Response",
+                value={
+
+                        "Delivery_id":"DEL982...",
+                        "delivery_status" : "picked_up" 
+                },
+                response_only=True,
+            ),
+        ],
+    )
+
     def put(self, request):
         serializer = DriverDeliveryUpdateSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
             delivery = serializer.save()
             return Response(
                 {   
-                    "id": delivery.id, 
+                    "Delivery_id": delivery.id, 
                     "Delivery Status":delivery.delivery_status
                 },
                 status=status.HTTP_201_CREATED)
@@ -113,6 +214,12 @@ class DriverDeliveryUpdateAPIView(APIView):
 
 
 # View for Delivery List Filter
+
+@extend_schema(
+    tags=["Delivery"],
+    summary="Search deliveries",
+    description="Returns deliveries depending on the logged-in user's role."
+)
 class DeliveryListAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsAssignedDriverOrAdmin]
 
