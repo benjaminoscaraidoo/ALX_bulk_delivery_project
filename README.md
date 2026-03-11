@@ -1,325 +1,344 @@
-Bulk Delivery Ordering Platform (Django)
-
-https://benjaminoscaraidoo.pythonanywhere.com/api/v1
-
-A RESTful API built with Django and Django REST Framework where:
-    Customers create orders
-    Each order contains multiple packages
-    Each package has its own delivery address
-    Drivers/Riders are automatically assigned
-    Drivers/Riders can be manually assigned
-    Status transitions
-    Cancellation workflows
-    Authentication (JWT ready)
-
-Apps:
-    customer
-    order
-    delivery
-
-Models:
-    customer: DriverProfile, CustomerProfile, CustomUser, EmailOTP
-    delivery: Delivery, Payment
-    order: Order, Package
-
-Custom user model with roles:
-    Customer
-    Driver
-    admin
-
-🚀 Features
-✅ Create & manage Orders
-✅ Assign Packages to Orders
-✅ Track Delivery status:
-    assigned
-    picked_up
-    delivered
-    cancelled
-✅ Cancel orders with cascade update to deliveries
-✅ Transaction-safe updates
-✅ Role-based permissions (Admin, Driver, Customer,Authenticated users)
-✅ Body-based API requests (no URL params for state changes)
-✅ Atomic database operations
-
-🧱 Tech Stack
-Backend: Django
-API Layer: Django REST Framework
-Database: PostgreSQL / SQLite
-Authentication: JWT (SimpleJWT compatible)
-Transactions: transaction.atomic()
-
-
-Architecture Flow:
-    For Customers
-    **********************
-    Customer Register:
-        >
-        Complete Profile:
-            >    
-            Create Order:
-                >
-                Add Packages/Receiver Details:
-                    >
-                    Create Deliveries:
-                        >
-                        Update Receiver details if information is missing:
-                            >
-                            Cancel Order with valid reason
-
-
-    For Drivers
-    **********************
-    Driver Register:
-        >
-        Complete Profile:
-            >    
-            Update delivery status(pickedup/delivered):
-
-
-    Admin:
-    ***********
-    SuperUser Register:
-        >
-        Driver Approval:
-            
-
-Endpoints:
-    Registration:
-        Super User:
-            POST /v1/register_superuser/
-
-            REQUEST JSON:
-            {
-                "email": "register.user@example.net",
-                "phone_number": "0242848472",
-                "first_name": "Ben",
-                "last_name": "Aidoo",
-                "password": "StrongPassword",
-                "password2": "StrongPassword"
-            }
-        
-        Customer/Driver:
-            POST /v1/register/request/
-
-            REQUEST JSON:
-            {
-                "email": "registercus.user@example.net",
-                "phone_number": "056554455",
-                "role": "customer",
-                "password": "StrongPassword",
-                "password2": "StrongPassword"
-            }
-
-        OTP Verification:
-            POST /v1/register/verify/
-
-            REQUEST JSON:
-            {
-                "email":"registercus.user@example.net"",
-                "otp":"352163"
-            }
-
-        Token Confirmation:
-            POST /v1/register/confirm/
-
-            REQUEST JSON:
-            {
-                "email":"benjamin.aidoo@brac.net",
-                "register_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzcyMjk2MTMzLCJpYXQiOjE3NzIyOTQzMzMsImp0aSI6ImY5YjgxODdmMDAzYzRiOTk5N2FkNjQ4ZmU1ZWEyMzk0IiwidXNlcl9pZCI6IjE1Iiwic2NvcGUiOiJyZWdpc3RyYXRpb24ifQ.mK536oBGCKq1xeVL7XefjvBOcFsuB6a_U2T1uE-3ww4"
-            }
-
-
-    Login:
-        POST /v1/auth/login/
-
-        REQUEST JSON:
-        {
-            "email":"userlogin@gmail.com",
-            "password":"StrongPassword"
-        }
-
-
-    Token Refresh:
-        POST /v1/auth/token/refresh/
-
-        REQUEST JSON:
-            {
-                "refresh":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc3MjYzNjExMywiaWF0IjoxNzcyMDMxMzEzLCJqdGkiOiIyY2I5OTUxN2Q5YTc0MTdlYTYxMTE2Mzg5OWJkYjA5ZiIsInVzZXJfaWQiOiI2Iiwicm9sZSI6ImN1c3RvbWVyIn0.smZL4EU1oY7VElM4tmBTl0-leVv-LxtymHvsYSSnGyw"
-            }
-
-
-    Password Reset Request:
-        POST /v1/password-reset/request/
-
-        REQUEST JSON:
-            {
-                "email":"passwordreset@gmail.com"
-            }
-
-
-    Password Reset OTP Verification:
-        POST /v1/password-reset/verify/
-
-        REQUEST JSON:
-           {
-                "email": "benaidoojnr@gmail.com",
-                "otp": "813176"
-    
-            }
-
-    Password Rest Token Confirmation:
-        POST /v1/password-reset/confirm/
-
-        REQUEST JSON:
-            {
-                "reset_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzcyMjA1NDQxLCJpYXQiOjE3NzIyMDM2NDEsImp0aSI6IjExNDUwZWIwMzhmYTRhNzE4YjU1YjFkMzRiYzBmYjAxIiwidXNlcl9pZCI6IjgiLCJzY29wZSI6InBhc3N3b3JkX3Jlc2V0In0.SaySCfI91KwYDHCRXNFESlYQyCknPV3a2gwirUUBNgg",
-                "new_password": "StrongPassword"
-            }
-
-
-    Customer Profile Update:
-        PUT /v1/profile/update/
-
-        REQUEST JSON:
-            {
-                "first_name": "Siato",
-                "last_name": "Wanem",
-                "phone_number": "0243424221",
-                "address": "a567/16 Dama Street"
-            }
-
-    Driver Profile Update:
-        PUT /v1/profile/update/
-
-        REQUEST JSON:
-        {
-            "first_name": "Issah",
-            "last_name": "Mussah",
-            "vehicle_type": "Royal Motor",
-            "vehicle_number": "MT-1076-22",
-            "license_number": "DV100188211222"
-        }
-
-    Driver Admin Approval:
-        PUT /v1/admin/driver/approve/
-
-        REQUEST JSON:
-        {
-            "email": "asango@gmail.com",
-            "action": "approve"
-        }
-
-    Order Creation:
-        POST /v1/order/create/
-
-        REQUEST JSON:
-        {
-            "pickup_address": "Ofankor barrier"
-        }
-
-    Cancel Order:
-        PUT /v1/order/cancel/
-
-        REQUEST JSON:
-        {
-            "order_id":"6",
-            "cancel_reason":"Mistaken Order"
-        }
-
-    Order Driver Assignment:
-        PUT /v1/order/assign/
-
-        REQUEST JSON:
-        {
-            "order_id":"9",
-            "driver_email":"asango@gmail.com" 
-        }
-
-    
-    Order Delivery Update:
-        PUT /v1/order/update/
-
-        REQUEST JSON:
-        {
-            "status":"picked_up",
-            "order_id":"ORDBD58268F"
-        }
-        
-
-    Search Orders:
-        GET /v1/search/order/?id=9
-
-
-    Create Packages:
-        POST /v1/package/create/
-
-        REQUEST JSON:
-        {
-            "order_id" :"9",
-            "packages": [
-            {
-                "description" : "Clothes",
-                "dimensions" : "Big" ,
-                "value" : "600",
-                "fragile" : "False",
-                "receiver_name" : "Akua mansa",
-                "receiver_phone" : "0241223312"
-            },
-            {
-                "description" : "Food",
-                "dimensions" : "Small" ,
-                "value" : "250",
-                "fragile" : "True",
-                "receiver_name" : "Mark Stone",
-                "receiver_phone" : "0209988260"
-            }
-            ]
-        }
-
-
-    Update Package Receiver details:
-        PUT /v1/package/update/
-
-        REQUEST JSON:
-        {
-            "package_id": "PKGBC374761",
-            "receiver_name" : "Akua mansa",
-            "receiver_phone" : "020887765"
-        }
-
-
-    Create Deliveries for Packages:
-        POST /v1/delivery/create/
-
-        REQUEST JSON:
-        {
-            "deliveries": [
-            {
-                "package_id":"PKGBC374761",
-                "address" : "Six to Six taxi station"
-
-            },
-            {
-                "package_id":"PKGBE24072E",
-                "address" : "nazareth methodist church mamprobi"
-            }
-        ]
-        }
-
-
-    Driver Delivery Update:
-        PUT /v1/delivery/update/
-
-        REQUEST JSON:
-        {
-            "package_id": "PKGBC374761",
-            "delivery_status": "picked_up"
-        }
-
-    
-    Search Delivery:
-        GET /v1/search/delivery/?delivery_status=cancelled&package_id=1
-
-    
-    Search Package:
-        GET /v1/search/package/?fragile=false&receiver_name=Adwoa
+# Bulk Delivery Ordering API
+
+A **RESTful backend service for managing deliveries, packages, and payments** built with **Django** and **Django REST Framework (DRF)**.
+The API supports role-based access for **drivers, customers, and administrators**, and provides comprehensive API documentation using **Swagger via drf-spectacular**.
+
+---
+
+## 🚀 Features
+
+* User role management (Customer, Driver, Admin)
+* Delivery creation and tracking
+* Driver delivery status updates
+* Delivery filtering, searching, and ordering
+* Payment management
+* Role-based permissions
+* Atomic transaction handling for critical operations
+* JWT authentication
+* Fully interactive API documentation with Swagger
+
+---
+
+## 🧰 Technology Stack
+
+* **Python**
+* **Django**
+* **Django REST Framework**
+* **drf-spectacular** (Swagger / OpenAPI documentation)
+* **django-filter**
+* **SimpleJWT** for authentication
+
+---
+
+## 📁 Project Structure
+
+```
+project_root/
+│
+├── manage.py
+│
+├── config/
+│   ├── settings.py
+│   ├── urls.py
+│   └── asgi.py
+│
+├── core/
+│   ├── schema.py
+│   └── utilities and shared logic
+│
+├── delivery/
+│   ├── models.py
+│   ├── serializers.py
+│   ├── filters.py
+│   ├── views.py
+│   └── urls.py
+│
+├── customer/
+│   └── permissions.py
+│
+└── requirements.txt
+```
+
+---
+
+## 🔐 Authentication
+
+The API uses **JWT authentication**.
+
+Clients must include the access token in requests:
+
+```
+Authorization: Bearer <access_token>
+```
+
+---
+
+## 📦 Delivery Endpoints
+
+### Search Deliveries
+
+```
+GET /v1/search/delivery/
+```
+
+Returns deliveries filtered based on the user's role.
+
+**Query Parameters**
+
+| Parameter       | Description                                |
+| --------------- | ------------------------------------------ |
+| search          | Search deliveries by id, address, or notes |
+| ordering        | Sort results                               |
+| delivery_status | Filter by delivery status                  |
+
+Example:
+
+```
+GET /v1/search/delivery/?search=mall&ordering=-assigned_at
+```
+
+---
+
+### Create Deliveries
+
+```
+POST /v1/delivery/create/
+```
+
+Creates one or more deliveries for packages.
+
+**Example Request**
+
+```json
+{
+  "deliveries": [
+    {
+      "package_id": "PKGE68...",
+      "address": "Accra Mall Gate 2"
+    },
+    {
+      "package_id": "PKGF79...",
+      "address": "Sakaman Junction"
+    }
+  ]
+}
+```
+
+**Example Response**
+
+```json
+{
+  "detail": "2 deliveries created successfully.",
+  "delivery_ids": [
+    "DEL4D7...",
+    "DEL5A7..."
+  ]
+}
+```
+
+---
+
+### Driver Update Delivery
+
+```
+PUT /v1/delivery/update/
+```
+
+Allows a driver to update the status of a delivery.
+
+**Example Request**
+
+```json
+{
+  "package_id": "PKGE68...",
+  "delivery_status": "picked_up"
+}
+```
+
+**Example Response**
+
+```json
+{
+  "Delivery_id": "DEL982...",
+  "Delivery Status": "picked_up"
+}
+```
+
+---
+
+## 🔎 Filtering, Searching, and Ordering
+
+The delivery list endpoint supports:
+
+* **Filtering**
+* **Search**
+* **Ordering**
+
+Example queries:
+
+```
+/v1/search/delivery/?delivery_status=picked_up
+```
+
+```
+/v1/search/delivery/?search=mall
+```
+
+```
+/v1/search/delivery/?ordering=-assigned_at
+```
+
+---
+
+## 📘 API Documentation
+
+The API documentation is automatically generated using **drf-spectacular**, which produces an **OpenAPI-compliant schema** and interactive Swagger UI.
+
+### Swagger UI
+
+```
+/api/docs/
+```
+
+### OpenAPI Schema
+
+```
+/api/schema/
+```
+
+### ReDoc Documentation
+
+```
+/api/redoc/
+```
+
+These interfaces allow developers to:
+
+* Explore all endpoints
+* Test API requests directly in the browser
+* View request/response schemas
+* Inspect authentication requirements
+* Understand filtering and query parameters
+
+---
+
+## ⚙️ Installation
+
+### 1️⃣ Clone the repository
+
+```
+git clone https://github.com/benjaminoscaraidoo/ALX_bulk_delivery_project.git
+cd bulk-delivery-api
+```
+
+### 2️⃣ Create a virtual environment
+
+```
+python -m venv venv
+```
+
+Activate it:
+
+Linux/Mac:
+
+```
+source venv/bin/activate
+```
+
+Windows:
+
+```
+venv\Scripts\activate
+```
+
+---
+
+### 3️⃣ Install dependencies
+
+```
+pip install -r requirements.txt
+```
+
+---
+
+### 4️⃣ Run migrations
+
+```
+python manage.py migrate
+```
+
+---
+
+### 5️⃣ Start the server
+
+```
+python manage.py runserver
+```
+
+---
+
+## 🧪 Running the API
+
+Once the server starts, access:
+
+```
+https://benjaminoscaraidoo.pythonanywhere.com/api/docs/
+```
+
+to explore the API documentation.
+
+---
+
+## 🛠 Custom Schema
+
+The project uses a **custom OpenAPI schema configuration** to automatically organize endpoints by application module.
+
+Example:
+
+```
+core/schema.py
+```
+
+This custom schema extends the default schema generation to improve API documentation grouping and readability.
+
+---
+
+## 🧩 Permissions
+
+Custom permissions enforce role-based access:
+
+* **IsDriver**
+* **IsAssignedDriverOrAdmin**
+* **IsDriverProfileComplete**
+* **IsCustomerProfileComplete**
+
+These ensure that only authorized users can perform specific operations.
+
+---
+
+## 📈 Future Improvements
+
+* Real-time delivery tracking
+* SMS or push notifications for delivery updates
+* Payment gateway integration
+* Admin dashboard
+* Driver route optimization
+
+---
+
+## 👤 Author
+
+Oscar Aidoo
+
+Backend Developer specializing in:
+
+* Django
+* Django REST Framework
+* Banking systems integrations
+* API architecture
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
