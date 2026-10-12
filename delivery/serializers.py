@@ -21,7 +21,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = "__all__"
-        read_only_fields = ("status", "paid_at")
+        read_only_fields = ("amount", "payment_status", "paid_at", "confirmed_by", "transaction_reference")
 
 
 # Serializer for DeliveryItem
@@ -38,6 +38,11 @@ class DeliveryItemSerializer(serializers.Serializer):
         request = self.context["request"]
         if package.order_id.customer_id != request.user:
             raise serializers.ValidationError("You can only create deliveries for your own packages.")
+
+        if hasattr(package, "quote") and attrs.get("address") and attrs["address"] != package.quote.delivery_address:
+            raise serializers.ValidationError("Delivery address must match the confirmed quote.")
+        if package.delivery_address:
+            attrs["address"] = package.delivery_address
 
         # Prevent duplicate delivery
         if hasattr(package, "deliveries"):

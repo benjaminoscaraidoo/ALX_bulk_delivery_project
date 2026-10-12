@@ -354,3 +354,16 @@ Backend Developer specializing in:
 ## 📄 License
 
 This project is licensed under the MIT License.
+
+
+## Delivery pricing and payments
+
+Run `python manage.py migrate` to install editable tariffs and the initial destination areas. In Django admin, manage **Distance tariffs** and **Delivery areas**. Kumasi, Takoradi and Tamale start without prices; set their charges before using automatic area pricing. Brackets initially charge GHS 35 up to 10 km, GHS 50 over 10–25 km, and GHS 60 over 25–30 km. Routes above the highest enabled bracket require an administrator quote.
+
+Configure `GOOGLE_MAPS_API_KEY` privately and enable Google Maps Routes API on its project. Local quotes use driving distance from the order pickup address to the package `delivery_address`. Outside-Accra packages use the selected area's fixed tariff. Missing credentials or routing failures return an error instead of a guessed price. Existing quotes preserve their original charges when tariffs change. `total_price` is the sum of quoted packages; check `pricing_complete` before treating it as the final order total.
+
+Use `GET /api/v1/pricing/areas/` to select an outside-Accra destination. Create packages with `delivery_address`, `outside_accra`, and `delivery_area` (required only when outside Accra). Use `POST /api/v1/package/quote/` with `package_id` to obtain a quote. For routes requiring a manual quote, staff may supply `amount` and `reason` to the same endpoint.
+
+Create a pending payment with `POST /api/v1/payment/create/`, providing `package_id` and `payment_method` (`cash` or `mobile_money`). The amount comes from the quote. The assigned driver confirms cash through `POST /api/v1/payment/<id>/confirm/`; staff administrators confirm mobile money using that endpoint with `transaction_reference`. Customers cannot mark payments as paid. Use `GET /api/v1/search/payment/` to list payments visible to the logged-in user. Payment-provider integration is reserved for a later release.
+
+Existing packages need delivery addresses before quotes can be generated. Existing payment records retain their current state. These changes do not create charges for legacy orders automatically.

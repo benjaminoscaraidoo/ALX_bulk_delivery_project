@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.validators import MinValueValidator
 from order.models import Package
 import datetime
 from .utils import generate_delivery_id, generate_transaction_id
@@ -65,11 +66,20 @@ class Payment(models.Model):
         editable=False
     )
     package_id = models.OneToOneField(Package, default=None, on_delete=models.CASCADE,related_name="payment")
-    amount = models.FloatField(default=0.0)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     payment_method = models.CharField(max_length=20, choices=Method.choices)
     transaction_reference = models.CharField(max_length=150, blank=True)
+    confirmed_by = models.ForeignKey("customer.CustomUser", null=True, blank=True, on_delete=models.SET_NULL)
     paid_at = models.DateField(null=True,blank=True)
     payment_status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING) 
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['transaction_reference'],
+                condition=models.Q(payment_status='paid') & ~models.Q(transaction_reference=''),
+                name='unique_paid_transaction_reference'),
+            models.CheckConstraint(condition=models.Q(amount__gte=0), name='nonnegative_payment_amount'),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.id:

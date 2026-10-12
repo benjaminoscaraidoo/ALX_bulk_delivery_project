@@ -11,6 +11,10 @@ class PackageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Package
         fields = [
+            "id",
+            "delivery_address",
+            "outside_accra",
+            "delivery_area",
             "description",
             "dimensions",
             "fragile",
@@ -18,6 +22,17 @@ class PackageSerializer(serializers.ModelSerializer):
             "receiver_name",
             "receiver_phone",
         ]
+
+        read_only_fields = ["id"]
+
+    def validate(self, attrs):
+        if attrs.get("outside_accra"):
+            area = attrs.get("delivery_area")
+            if not area or not area.enabled:
+                raise serializers.ValidationError("Select an enabled outside-Accra area.")
+        elif attrs.get("delivery_area"):
+            raise serializers.ValidationError("Delivery area is only for outside-Accra packages.")
+        return attrs
 
     def create(self, validated_data):
 
@@ -33,12 +48,17 @@ class PackageSerializer(serializers.ModelSerializer):
 
 # Serializer for order
 class OrderSerializer(serializers.ModelSerializer):
+    pricing_complete = serializers.SerializerMethodField()
+
+    def get_pricing_complete(self, obj) -> bool:
+        return obj.packages.exists() and not obj.packages.filter(quote__isnull=True).exists()
+
     packages = PackageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Order
         fields = "__all__"
-        read_only_fields = ("customer_id", "order_status", "created_at")
+        read_only_fields = ("customer_id", "order_status", "created_at", "total_price")
 
     def create(self, validated_data):
         request = self.context["request"]

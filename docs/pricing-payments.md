@@ -1,0 +1,8 @@
+# Pricing and payments contract
+All amounts are GHS. Administrators manage distance brackets and outside-Accra areas in Django admin. Initial brackets: up to 10 km = 35, over 10–25 km = 50, over 25–30 km = 60. Above configured brackets requires an administrator quote. Outside-Accra areas start without prices until an administrator sets them.
+
+Packages accept delivery_address, outside_accra, and delivery_area (area ID). Customers cannot supply distance or price. GET /api/v1/pricing/areas/ lists enabled destinations. POST /api/v1/package/quote/ accepts package_id and returns a stored quote using Google Routes driving distance, or a quote_required response. An administrator can submit amount and reason for a route requiring a manual quote. Stored quotes are immutable price snapshots. Changing tariffs does not change existing quotes. Order totals sum quoted packages; pricing_complete identifies orders still missing quotes.
+
+POST /api/v1/payment/create/ accepts package_id and payment_method (cash or mobile_money), creating one pending payment using the stored quote amount. GET /api/v1/search/payment/ returns only owned or assigned records (all for staff administrators). POST /api/v1/payment/<id>/confirm/ confirms cash only for the assigned driver, and mobile_money only for a staff administrator, with a transaction_reference required for mobile money. Paid payments cannot be reconfirmed. Customers cannot set amounts, paid dates, or payment status.
+
+Google Routes requires GOOGLE_MAPS_API_KEY and an enabled Routes API. Provider failures return 503, never a zero-distance quote. No payment gateway calls occur in this release.

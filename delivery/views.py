@@ -90,7 +90,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
 
 
 # View for Payment
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -98,7 +98,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == "admin":
             return Payment.objects.all()
-        return Payment.objects.filter(order__customer=user)
+        return Payment.objects.filter(package_id__order_id__customer_id=user)
     
 
 

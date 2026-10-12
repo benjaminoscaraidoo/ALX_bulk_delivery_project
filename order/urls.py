@@ -9,11 +9,14 @@ from .views import (
     OrderPickupUpdateAPIView
     )
 from django.urls import path
+from .pricing_views import AreaListAPIView, PackageQuoteAPIView
 
 app_name = "order"
 
 
 urlpatterns = [
+    path("v1/pricing/areas/", AreaListAPIView.as_view()),
+    path("v1/package/quote/", PackageQuoteAPIView.as_view()),
     path("v1/order/create/", OrderCreateAPIView.as_view(), name="create_order"),
     path("v1/search/order/", OrderListAPIView.as_view(), name="search_order"),
     path("v1/search/package/", PackageListAPIView.as_view(), name="search_package"),

@@ -213,3 +213,5 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 #STATICFILES_DIRS = [
 #    os.path.join(BASE_DIR, "static"),
 #]
+
+GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
