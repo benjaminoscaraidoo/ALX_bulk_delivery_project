@@ -2,32 +2,9 @@ from rest_framework import serializers
 from .models import CustomUser, CustomerProfile, DriverProfile
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.contrib.auth.password_validation import validate_password
 User = get_user_model()
-
-class CustomerProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomerProfile
-        fields = [
-            "customer_name",
-            "address",
-            "is_complete",
-        ]
-        read_only_fields = ["is_complete"]
-
-
-class DriverProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DriverProfile
-        fields = [
-            "vehicle_type",
-            "vehicle_number",
-            "license_number",
-            "availability_status",
-            "is_complete",
-        ]
-        read_only_fields = ["is_complete"]
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -93,85 +70,71 @@ class RegisterConfirmSerializer(serializers.Serializer):
 
 # Serializer for Customer profile update after registration
 
-class CustomerProfileSerializer(serializers.ModelSerializer):
-    first_name = serializers.CharField(source="user.first_name", required=False)
-    last_name = serializers.CharField(source="user.last_name", required=False)
-    phone_number = serializers.CharField(source="user.phone_number", required=False)
+class AtomicProfileSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name", max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(source="user.last_name", max_length=150, required=False, allow_blank=True)
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        try:
+            with transaction.atomic():
+                user = User.objects.select_for_update().get(pk=instance.user_id)
+                profile = self.Meta.model.objects.select_for_update().get(pk=instance.pk)
+                profile.user = user
+                if "phone_number" in user_data:
+                    self.validate_phone_number(user_data["phone_number"])
+                for attr, value in user_data.items():
+                    setattr(user, attr, value)
+                user.save()
+                changed_credentials = isinstance(profile, DriverProfile) and any(
+                    field in validated_data and validated_data[field] != getattr(profile, field)
+                    for field in ("vehicle_type", "vehicle_number", "license_number")
+                )
+                for attr, value in validated_data.items():
+                    setattr(profile, attr, value)
+                if isinstance(profile, CustomerProfile):
+                    profile.customer_name = " ".join(part for part in (user.first_name.strip(), user.last_name.strip()) if part)
+                    profile.is_complete = bool(profile.customer_name and profile.address.strip())
+                else:
+                    profile.is_complete = all(
+                        getattr(profile, field).strip()
+                        for field in ("vehicle_type", "vehicle_number", "license_number")
+                    )
+                    if changed_credentials:
+                        profile.approval_status = "pending"
+                        profile.is_approved = False
+                        profile.rejection_reason = ""
+                profile.save()
+                return profile
+        except IntegrityError:
+            raise serializers.ValidationError({"phone_number": "This phone number is already in use."})
+
+
+class CustomerProfileSerializer(AtomicProfileSerializer):
+    phone_number = serializers.CharField(source="user.phone_number", max_length=20, required=False, allow_blank=True)
 
     class Meta:
         model = CustomerProfile
-        fields = [
-            "first_name",
-            "last_name",
-            "phone_number",
-            "address",
-            "is_complete",
-        ]
+        fields = ["first_name", "last_name", "phone_number", "address", "is_complete"]
         read_only_fields = ["is_complete"]
 
-    def update(self, instance, validated_data):
-        user_data = validated_data.pop("user", {})
-
-        # Update User model fields
-        if "first_name" in user_data:
-            instance.user.first_name = user_data["first_name"]
-
-        if "last_name" in user_data:
-            instance.user.last_name = user_data["last_name"]
-
-        if "phone_number" in user_data:
-            instance.user.phone_number = user_data["phone_number"]
-
-        
-        instance.user.save()
-
-        # Update profile fields
-
-        instance.customer_name = instance.user.first_name + instance.user.last_name
-
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-
-        instance.save()
-        return instance
+    def validate_phone_number(self, value):
+        # Clearing an optional phone must use NULL rather than a shared empty string.
+        if not value:
+            return None
+        queryset = User.objects.filter(phone_number=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.user_id)
+        if queryset.exists():
+            raise serializers.ValidationError("This phone number is already in use.")
+        return value
 
 
-# Serializer for Driver profile update after registration
-class DriverProfileSerializer(serializers.ModelSerializer):
-    first_name = serializers.CharField(source="user.first_name", required=False)
-    last_name = serializers.CharField(source="user.last_name", required=False)
-
+class DriverProfileSerializer(AtomicProfileSerializer):
     class Meta:
         model = DriverProfile
-        fields = [
-            "first_name",
-            "last_name",
-            "vehicle_type",
-            "vehicle_number",
-            "license_number",
-            "availability_status",
-            "is_complete",
-        ]
+        fields = ["first_name", "last_name", "vehicle_type", "vehicle_number", "license_number", "availability_status", "is_complete"]
         read_only_fields = ["is_complete"]
-
-    def update(self, instance, validated_data):
-        user_data = validated_data.pop("user", {})
-
-        # Update User fields
-        if "first_name" in user_data:
-            instance.user.first_name = user_data["first_name"]
-
-        if "last_name" in user_data:
-            instance.user.last_name = user_data["last_name"]
-
-        instance.user.save()
-
-        # Update profile fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-
-        instance.save()
-        return instance
 
 
 # Serializer for JWT token generation for login
@@ -190,10 +153,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['role'] = self.user.role
         # Optionally include profile completion status
         if self.user.role == CustomUser.Role.CUSTOMER:
-            data['profile_complete'] = bool(self.user.customer_profile.customer_name)
+            profile = getattr(self.user, 'customer_profile', None)
+            data['profile_complete'] = bool(profile and profile.is_complete)
         elif self.user.role == CustomUser.Role.DRIVER:
             profile = getattr(self.user, "driverprofile", None)
-            data['profile_complete'] = bool(profile and profile.vehicle_type)
+            data['profile_complete'] = bool(profile and profile.is_complete)
         else:
             data['profile_complete'] = True
         return data

@@ -376,21 +376,6 @@ class RoleBasedProfileAPIView(APIView):
         if serializer.is_valid():
             profile = serializer.save()
 
-            # Auto mark profile complete
-            if user.role == "customer":
-                if profile.customer_name and profile.address:
-                    profile.is_complete = True
-                    profile.save()
-
-            if user.role == "driver":
-                if (
-                    profile.vehicle_type
-                    and profile.vehicle_number
-                    and profile.license_number
-                ):
-                    profile.is_complete = True
-                    profile.save()
-
             return Response({
                 "message": "Profile updated successfully",
                 "profile": serializer.data
