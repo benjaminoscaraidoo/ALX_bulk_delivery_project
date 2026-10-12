@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -31,9 +32,13 @@ env.read_env(BASE_DIR / ".env")
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-
-ALLOWED_HOSTS = []
+DJANGO_ENV = env("DJANGO_ENV", default="local")
+if DJANGO_ENV not in ("local", "production"):
+    raise ImproperlyConfigured("DJANGO_ENV must be local or production.")
+PRODUCTION = DJANGO_ENV == "production"
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
+if PRODUCTION and DEBUG:
+    raise ImproperlyConfigured("DEBUG must be disabled in production.")
 
 
 # Application definition
@@ -93,26 +98,25 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {'transaction_mode': 'IMMEDIATE', 'timeout': 20},
+        'TEST': {'NAME': env('SQLITE_TEST_DATABASE', default=None)},
     }
 }
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost","benjaminoscaraidoo.pythonanywhere.com"]
-
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[] if PRODUCTION else ["127.0.0.1", "localhost"])
+if PRODUCTION and (not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS):
+    raise ImproperlyConfigured("Set explicit DJANGO_ALLOWED_HOSTS for production.")
+CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 SECURE_CONTENT_TYPE_NOSNIFF = True
-
-SECURE_BROWSER_XSS_FILTER = True 
-
 X_FRAME_OPTIONS = "DENY"
-
-CSRF_COOKIE_SECURE = False           # Prevents cookie theft
-SESSION_COOKIE_SECURE = False        # Forces HTTPS for session cookies
-
-SECURE_SSL_REDIRECT = False
-SECURE_HSTS_SECONDS = "31536000"
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True 
-
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_COOKIE_SECURE = PRODUCTION
+SESSION_COOKIE_SECURE = PRODUCTION
+SECURE_SSL_REDIRECT = PRODUCTION
+SECURE_HSTS_SECONDS = env.int("DJANGO_HSTS_SECONDS", default=3600) if PRODUCTION else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("DJANGO_HSTS_INCLUDE_SUBDOMAINS", default=False) if PRODUCTION else False
+SECURE_HSTS_PRELOAD = False
+# Enable only when the host strips user-supplied headers and sets this itself.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') if env.bool("DJANGO_TRUST_PROXY", default=False) else None
 
 #Add token lifetime
 
@@ -157,6 +161,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
  
 REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",
     'DEFAULT_AUTHENTICATION_CLASSES': (
     'rest_framework_simplejwt.authentication.JWTAuthentication',
     'rest_framework.authentication.SessionAuthentication',
@@ -206,7 +211,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 

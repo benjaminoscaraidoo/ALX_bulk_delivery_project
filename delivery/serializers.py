@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Delivery, Payment
 from order.models import Package, Order
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, IntegrityError
 
 # Serializer for Delivery
 class DeliverySerializer(serializers.ModelSerializer):
@@ -52,6 +52,9 @@ class DeliveryItemSerializer(serializers.Serializer):
 
         order = package.order_id  
 
+        if order.order_status not in [Order.Status.PENDING, Order.Status.ASSIGNED]:
+            raise serializers.ValidationError("Deliveries can only be created before pickup on uncancelled orders.")
+
         if not order.driver_id:
             raise serializers.ValidationError(
                 f"Order {order.id} has no driver assigned."
@@ -67,29 +70,28 @@ class CreateDeliveriesSerializer(serializers.Serializer):
     deliveries = DeliveryItemSerializer(many=True)
 
     def create(self, validated_data):
-        deliveries_data = validated_data["deliveries"]
-
-        delivery_objects = []
-
-        for item in deliveries_data:
-            rider = item.pop("rider")
-            package = item["package_id"]
-
-            delivery_objects.append(
-                Delivery(
-                    package_id=package,
-                    rider=rider,
-                    address=item.get("address", "")
-                )
-            )
-
-        created_deliveries = []
-
-        for delivery in delivery_objects:
-            delivery.save() 
-            created_deliveries.append(delivery)
-
-        return created_deliveries
+        items = validated_data["deliveries"]
+        ids = [item["package_id"].pk for item in items]
+        if not ids or len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Select at least one package, with no duplicates.")
+        try:
+            with transaction.atomic():
+                order_ids = sorted({item["package_id"].order_id_id for item in items})
+                orders = {order.pk: order for order in Order.objects.select_for_update().filter(pk__in=order_ids).order_by('pk')}
+                packages = {package.pk: package for package in Package.objects.select_for_update().filter(pk__in=ids).order_by('pk')}
+                created = []
+                for item in items:
+                    package = packages.get(item["package_id"].pk)
+                    if not package or package.order_id_id not in orders:
+                        raise serializers.ValidationError("Package no longer exists. Refresh and try again.")
+                    package.order_id = orders[package.order_id_id]
+                    fresh = DeliveryItemSerializer(context=self.context).validate({
+                        "package_id": package, "address": item.get("address", "")
+                    })
+                    created.append(Delivery.objects.create(package_id=package, rider=fresh['rider'], address=fresh.get('address', '')))
+                return created
+        except IntegrityError:
+            raise serializers.ValidationError("A delivery already exists for one of these packages. Refresh and try again.")
 
 
 # Serializer for Delivery status update by assigned driver/riders

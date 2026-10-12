@@ -380,3 +380,21 @@ Pages use Django session login and call existing APIs with CSRF-protected reques
 For mobile money, the assigned driver or a staff administrator can save the MoMo transaction ID on the order page. The payment stays pending until staff confirms receipt. The admin confirmation form pre-fills the saved ID. The API endpoint is `POST /api/v1/payment/<id>/reference/`, accepting `transaction_reference`; the payment response includes `transaction_recorded_by` and `transaction_recorded_at`.
 
 Profile completion is recalculated after every profile update. Customer completion requires a name and address; driver completion requires vehicle type, vehicle number and license number. Duplicate customer phone numbers return validation errors, and user/profile changes save together. Editing vehicle or license details resets driver approval to pending and blocks new assignments; existing assigned deliveries remain accessible when the profile is complete. Name and availability changes do not reset approval.
+
+
+## Concurrent writes
+
+SQLite transactions use `IMMEDIATE` mode with a 20-second lock timeout. Busy/locked API writes return a generic 503 response with `Retry-After: 1`. Delivery creation locks orders in a consistent order and rechecks ownership, state and the current driver before saving. OTP replacement, verification and confirmation coordinate on the user record; email sending occurs after the replacement transaction commits.
+
+Run simultaneous-request tests against an isolated disk-backed database, for example:
+
+```
+SQLITE_TEST_DATABASE=/tmp/parcel-concurrency-test.sqlite3 python manage.py test --noinput
+```
+
+Use a disposable path: the test runner creates and removes this database. Default in-memory SQLite cannot reproduce normal file-lock waiting, so the concurrency test class skips in-memory runs. These tests cover overlapping requests, not production load capacity. SQLite still serializes writes; larger deployment capacity requires a separate database decision.
+
+
+## Production deployment
+
+See [the deployment guide](docs/deployment.md) for PythonAnywhere configuration, backups, migrations, static files, tariff setup and verification. Set `DJANGO_ENV=production` and explicit `DJANGO_ALLOWED_HOSTS` on the server. Production enables HTTPS redirects and secure session/CSRF cookies; local preview remains HTTP-compatible. Trust forwarded HTTPS headers only with `DJANGO_TRUST_PROXY=True` after verifying the host's proxy configuration. HSTS starts at one hour without preload or subdomain enforcement.

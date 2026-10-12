@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
@@ -32,7 +32,7 @@ from drf_spectacular.utils import (
     extend_schema,
     OpenApiExample,
     OpenApiResponse,
-    OpenApiParameter
+    OpenApiParameter, inline_serializer, PolymorphicProxySerializer
 )
 from rest_framework_simplejwt.serializers import TokenVerifySerializer,TokenRefreshSerializer
 # Create your views here.
@@ -45,6 +45,7 @@ UserR = get_user_model()
     tags=["System"],
     summary="API Root",
     description="Health check endpoint for Bulk Delivery API",
+    responses={200: inline_serializer(name="HealthResponse", fields={"message": serializers.CharField(), "status": serializers.CharField()})},
 )
 @api_view(['GET'])
 def api_root(request):
@@ -184,9 +185,6 @@ class RegisterRequestAPIView(APIView):
     
             user = serializer.save()
 
-            # Delete old reset OTPs
-            EmailOTP.objects.filter(user=user, otp_purpose="registration").delete()
-
             send_otp(user, otp_purpose="registration")
 
             return Response(
@@ -314,7 +312,7 @@ class RoleBasedProfileAPIView(APIView):
         tags=["Profiles"],
         summary="Customer/Driver Porfile Update",
         description="Complete Profile for Customers/Drivers",
-        request=RegisterConfirmSerializer,
+        request=PolymorphicProxySerializer(component_name="ProfileUpdate", serializers=[CustomerProfileSerializer, DriverProfileSerializer], resource_type_field_name=None),
         responses={200: OpenApiResponse(description="Profile Updated Successfully")},
         examples=[
             OpenApiExample(
@@ -498,9 +496,6 @@ class PasswordResetRequestAPIView(APIView):
         except UserR.DoesNotExist:
             # Do NOT reveal if email exists
             return Response({"message": "If account exists, OTP sent"})
-
-        # Delete old reset OTPs
-        EmailOTP.objects.filter(user=user, otp_purpose="password_reset").delete()
 
         send_otp(user, otp_purpose="password_reset")
 

@@ -51,6 +51,8 @@ class DeliveryViewSet(viewsets.ModelViewSet):
         return super().retrieve(request, *args, **kwargs)
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Delivery.objects.none()
         user = self.request.user
         if user.role == "driver":
             return Delivery.objects.filter(rider__user=user)
@@ -95,6 +97,8 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Payment.objects.none()
         user = self.request.user
         if user.role == "admin":
             return Payment.objects.all()
@@ -111,7 +115,7 @@ class CreateDeliveriesAPIView(APIView):
         summary="Create Delivery",
         description="Create new deliveries for customers.",
         request=CreateDeliveriesSerializer,
-        responses={200: OpenApiResponse(description="Deliveries Created Successfully")},
+        responses={201: OpenApiResponse(description="Deliveries Created Successfully")},
         examples=[
             OpenApiExample(
                 "Create Deliveries Request",
@@ -148,15 +152,7 @@ class CreateDeliveriesAPIView(APIView):
         serializer = CreateDeliveriesSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
-        try:
-            with transaction.atomic():
-                deliveries = serializer.save()
-
-        except Exception as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        deliveries = serializer.save()
 
         return Response(
             {
@@ -177,7 +173,7 @@ class DriverDeliveryUpdateAPIView(APIView):
         summary="Driver Update Delivery",
         description="Delivery status update by drivers.",
         request=DriverDeliveryUpdateSerializer,
-        responses={200: OpenApiResponse(description="Delivery Status Updated Successfully")},
+        responses={201: OpenApiResponse(description="Delivery Status Updated Successfully")},
         examples=[
             OpenApiExample(
                 "Update Delivery Status Request",
@@ -241,6 +237,8 @@ class DeliveryListAPIView(generics.ListAPIView):
         ]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Delivery.objects.none()
 
         user = self.request.user
 

@@ -3,7 +3,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import Order, Package
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, serializers
 from django.contrib.auth import get_user_model
 from .serializers import (
     OrderSerializer,
@@ -28,7 +28,7 @@ from drf_spectacular.utils import (
     extend_schema,
     OpenApiExample,
     OpenApiResponse,
-    OpenApiParameter
+    OpenApiParameter, inline_serializer
 )
 
 
@@ -47,6 +47,8 @@ class OrderViewSet(viewsets.ModelViewSet):
     ]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Order.objects.none()
         user = self.request.user
         if user.role == "admin":
             return Order.objects.all()
@@ -58,6 +60,8 @@ class PackageViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Package.objects.none()
         return Package.objects.filter(order__customer=self.request.user)
 
     def perform_create(self, serializer):
@@ -73,8 +77,8 @@ class OrderCreateAPIView(APIView):
         tags=["Orders"],
         summary="Create Order",
         description="Create a new Order by a customer.",
-        request=CreatePackagesSerializer,
-        responses={200: OpenApiResponse(description="Order created Successfully")},
+        request=OrderCreateSerializer,
+        responses={201: OpenApiResponse(description="Order created Successfully")},
         examples=[
             OpenApiExample(
                 "Create Order Request",
@@ -118,7 +122,7 @@ class OrderAssignAPIView(APIView):
         tags=["Admin"],
         summary="Assign Driver to Order",
         description="Assign a driver to deliver packages for an Order.",
-        request=CreatePackagesSerializer,
+        request=inline_serializer(name="OrderAssignmentRequest", fields={"order_id": serializers.CharField(), "driver_email": serializers.EmailField()}),
         responses={200: OpenApiResponse(description="Order Assigned to Driver Successfully")},
         examples=[
             OpenApiExample(
@@ -161,8 +165,8 @@ class OrderCancelAPIView(APIView):
         tags=["Orders"],
         summary="Cancel Order",
         description="Cancel a created Order.",
-        request=CreatePackagesSerializer,
-        responses={200: OpenApiResponse(description="Order cancelled Successfully")},
+        request=OrderCancelSerializer,
+        responses={201: OpenApiResponse(description="Order cancelled Successfully")},
         examples=[
             OpenApiExample(
                 "Cancel Order Request",
@@ -221,6 +225,8 @@ class OrderListAPIView(generics.ListAPIView):
     search_fields = ['id', 'pickup_address', 'cancel_reason']
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Order.objects.none()
 
         user = self.request.user
         
@@ -243,7 +249,7 @@ class CreatePackagesAPIView(APIView):
         summary="Create Packages",
         description="Create new packages for Orders.",
         request=CreatePackagesSerializer,
-        responses={200: OpenApiResponse(description="Packages created Successfully")},
+        responses={201: OpenApiResponse(description="Packages created Successfully")},
         examples=[
             OpenApiExample(
                 "Create Package Request",
@@ -309,8 +315,8 @@ class PackageDetailsUpdateAPIView(APIView):
         tags=["Packages"],
         summary="Updage Package Details",
         description="Update Receiver Details for a package.",
-        request=CreatePackagesSerializer,
-        responses={200: OpenApiResponse(description="Packages updated Successfully")},
+        request=PackageDetailsUpdateSerializer,
+        responses={201: OpenApiResponse(description="Packages updated Successfully")},
         examples=[
             OpenApiExample(
                 "Update Package Request",
@@ -374,6 +380,8 @@ class PackageListAPIView(generics.ListAPIView):
 
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Package.objects.none()
         user = self.request.user
 
         if user.role == "admin":
@@ -404,7 +412,7 @@ class OrderPickupUpdateAPIView(APIView):
         tags=["Orders"],
         summary="Order Pickup Update",
         description="Update pickeup status by Driver.",
-        request=CreatePackagesSerializer,
+        request=OrderUpdateSerializer,
         responses={200: OpenApiResponse(description="Order status updated Successfully")},
         examples=[
             OpenApiExample(

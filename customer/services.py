@@ -1,27 +1,19 @@
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db import transaction
+from django.contrib.auth import get_user_model
 from .models import EmailOTP
 from .utils import generate_otp
 
-def send_otp(user, otp_purpose = ""):
-
-    # Delete old OTPs
-    EmailOTP.objects.filter(user=user, otp_purpose=otp_purpose).delete()
-
-    code = generate_otp()
-
-    EmailOTP.objects.create(
-        user=user,
-        otp=code,
-        otp_purpose=otp_purpose
-    )
-
-    send_mail(
-        subject="Your Verification Code",
-        message=f"Your OTP is {code}. It expires in 5 minutes.",
-        from_email=settings.EMAIL_HOST_USER,
-        recipient_list=[user.email],
-    )
+def send_otp(user, otp_purpose=""):
+    with transaction.atomic():
+        user = get_user_model().objects.select_for_update().get(pk=user.pk)
+        EmailOTP.objects.filter(user=user, otp_purpose=otp_purpose).delete()
+        code = generate_otp()
+        EmailOTP.objects.create(user=user, otp=code, otp_purpose=otp_purpose)
+    send_mail(subject="Your Verification Code",
+              message=f"Your OTP is {code}. It expires in 5 minutes.",
+              from_email=settings.EMAIL_HOST_USER, recipient_list=[user.email])
 
 CONFIRMATION_SALT = 'bulk-delivery.account-confirmation'
 
@@ -32,8 +24,11 @@ def verify_otp(email, code, purpose):
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
     with transaction.atomic():
+        user = get_user_model().objects.select_for_update().filter(email=email).first()
+        if not user:
+            raise ValidationError("Invalid or expired OTP.")
         otp = EmailOTP.objects.select_for_update().filter(
-            user__email=email, otp_purpose=purpose, is_verified=False
+            user=user, otp_purpose=purpose, is_verified=False
         ).last()
         if not otp or otp.is_expired():
             raise ValidationError('Invalid or expired OTP.')
@@ -68,10 +63,11 @@ def confirm_account_token(token, purpose, action):
         raise ValidationError('Invalid confirmation purpose.')
     with transaction.atomic():
         try:
+            user_id = EmailOTP.objects.filter(pk=payload.get('otp_id'), otp_purpose=purpose).values_list('user_id', flat=True).first()
+            user = get_user_model().objects.select_for_update().get(pk=user_id)
             otp = EmailOTP.objects.select_for_update().get(
-                pk=payload.get('otp_id'), otp_purpose=purpose, is_verified=True
+                pk=payload.get('otp_id'), user=user, otp_purpose=purpose, is_verified=True
             )
-            user = get_user_model().objects.select_for_update().get(pk=otp.user_id)
         except (EmailOTP.DoesNotExist, get_user_model().DoesNotExist, TypeError, ValueError):
             raise ValidationError('Confirmation token has already been used or revoked.')
         action(user)
