@@ -157,6 +157,7 @@ class OrderCancelSerializer(serializers.Serializer):
             order = Order.objects.select_for_update().get(
                 pk=validated_data["order"].pk
             )
+            self.validate({**validated_data, "order": order})
             order.order_status = "cancelled"
             order.cancel_reason = validated_data["cancel_reason"]
             order.save()
@@ -193,9 +194,9 @@ class CreatePackagesSerializer(serializers.Serializer):
             )
 
 
-        if order.order_status in ["delivered"]:
+        if order.order_status not in [Order.Status.PENDING, Order.Status.ASSIGNED]:
             raise serializers.ValidationError(
-                "Cannot add packages to an active or completed order."
+                "Packages can only be added to pending or assigned orders."
             )
 
         if not attrs["packages"]:
@@ -206,16 +207,13 @@ class CreatePackagesSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        order = validated_data["order"]
-        packages_data = validated_data["packages"]
-
-        created_packages = []
-
-        for package_data in packages_data:
-            pkg = Package.objects.create(order_id=order, **package_data)
-            created_packages.append(pkg)
-
-        return created_packages
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=validated_data["order"].pk)
+            self.validate({**validated_data, "order": order})
+            return [
+                Package.objects.create(order_id=order, **package_data)
+                for package_data in validated_data["packages"]
+            ]
 
 
 # Serialier for package information update
@@ -310,79 +308,29 @@ class OrderUpdateSerializer(serializers.Serializer):
                 f"Order cannot be moved to picked_up from '{order.order_status}'."
             )
 
-        # Ensure delivery belongs to this rider
-        deliveries = Delivery.objects.filter(
-            package_id__order_id=order.id
-            )
+        if order.order_status != Order.Status.ASSIGNED:
+            raise serializers.ValidationError("Only assigned orders can be picked up.")
+        if not order.driver_id or order.driver_id.user_id != request.user.pk:
+            raise serializers.ValidationError("You can only update orders assigned to you.")
 
+        deliveries = Delivery.objects.filter(package_id__order_id=order.pk)
+        if not deliveries.exists():
+            raise serializers.ValidationError("No deliveries found for this order.")
+        if order.packages.count() != deliveries.count():
+            raise serializers.ValidationError("Every package must have a delivery before pickup.")
         for delivery in deliveries:
-            if delivery.rider.user != request.user:
-                raise serializers.ValidationError(
-                    "You can only update orders assigned to you."
-                )
-            
-        return attrs  
+            if delivery.rider_id != order.driver_id_id:
+                raise serializers.ValidationError("All deliveries must belong to the assigned driver.")
+            if delivery.delivery_status != Delivery.Status.ASSIGNED:
+                raise serializers.ValidationError("All deliveries must be assigned before pickup.")
+        return attrs
 
-
-    def create1(self, validated_data):
-
+    def create(self, validated_data):
         with transaction.atomic():
-
-            order = Order.objects.select_for_update().get(
-                pk=validated_data["order"].pk
-            )
-
-            # Lock all deliveries belonging to this order
-            deliveries = Delivery.objects.select_for_update().filter(
-                package_id__order_id=order.id
-            )
-
-            if not deliveries.exists():
-                raise serializers.ValidationError(
-                    "No deliveries found for this order."
-                )
-
-            # Update all deliveries
-            now = timezone.now()
-            deliveries.update(
-                delivery_status="picked_up",
-                picked_up_at=now
-            )
-
-            # Update order status
+            order = Order.objects.select_for_update().get(pk=validated_data["order"].pk)
+            self.validate({**validated_data, "order": order})
+            deliveries = Delivery.objects.select_for_update().filter(package_id__order_id=order.pk)
+            deliveries.update(delivery_status=Delivery.Status.PICKED_UP, picked_up_at=timezone.now())
             order.order_status = Order.Status.IN_TRANSIT
             order.save()
-
-        return order
-    
-    def create(self, validated_data):
-
-        with transaction.atomic():
-
-            order = Order.objects.select_for_update().get(
-                pk=validated_data["order"].pk
-            )
-
-            deliveries = Delivery.objects.select_for_update().filter(
-                package_id__order_id=order.id
-            )
-
-            now = timezone.now()
-            new_status = validated_data["status"]
-
-            # Update all deliveries individually (safe for timestamps)
-            for delivery in deliveries:
-
-                if new_status == "picked_up":
-                    delivery.delivery_status = Delivery.Status.PICKED_UP
-                    delivery.picked_up_at = now
-
-                delivery.save()
-
-            # Update Order status
-            if new_status == "picked_up":
-                order.order_status = Order.Status.IN_TRANSIT
-
-            order.save()
-
         return order

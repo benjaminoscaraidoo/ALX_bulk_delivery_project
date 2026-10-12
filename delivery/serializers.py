@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Delivery, Payment
 from order.models import Package, Order
-from datetime import datetime
+from django.utils import timezone
 from django.db import transaction
 
 # Serializer for Delivery
@@ -111,11 +111,14 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
         
                 
         # Ensure delivery belongs to this rider
-        if delivery.rider.user != request.user:
+        if not delivery.rider or delivery.rider.user_id != request.user.pk:
             raise serializers.ValidationError(
                 "You can only update deliveries assigned to you."
             )
         
+        if package.order_id.order_status in [Order.Status.CANCELLED, Order.Status.DELIVERED]:
+            raise serializers.ValidationError("Cannot update deliveries for a cancelled or completed order.")
+
         new_delivery_status = attrs["delivery_status"]
         current_status = delivery.delivery_status
 
@@ -126,7 +129,7 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
             "delivered": []
         }
 
-        if new_delivery_status not in valid_transitions[current_status]:
+        if new_delivery_status not in valid_transitions.get(current_status, []):
             raise serializers.ValidationError(
                 f"Invalid status transition from '{current_status}' to '{new_delivery_status}'."
             )
@@ -138,31 +141,36 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
 
         with transaction.atomic():
 
+            order = Order.objects.select_for_update().get(
+                pk=validated_data["delivery"].package_id.order_id_id
+            )
             delivery = Delivery.objects.select_for_update().get(
                 pk=validated_data["delivery"].pk
             )
+
+            package = delivery.package_id
+            package.deliveries = delivery
+            package.order_id = order
+            self.validate({**validated_data, "package": package})
 
             new_status = validated_data["delivery_status"]
             delivery.delivery_notes = validated_data.get("delivery_notes", "")
 
             if new_status == "picked_up":
-                delivery.picked_up_at = datetime.now()
+                delivery.picked_up_at = timezone.now()
 
             if new_status == "delivered":
-                delivery.delivered_at = datetime.now()
+                delivery.delivered_at = timezone.now()
 
             delivery.delivery_status = new_status
             delivery.save()
 
-            order = delivery.package_id.order_id
 
             if new_status == "picked_up" and order.order_status != Order.Status.IN_TRANSIT:
                 order.order_status = Order.Status.IN_TRANSIT
                 order.save()
 
-            total = Delivery.objects.filter(
-                package_id__order_id=order.id
-            ).count()
+            total = order.packages.count()
 
             delivered_count = Delivery.objects.filter(
                 package_id__order_id=order.id,
