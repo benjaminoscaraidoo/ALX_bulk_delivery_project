@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Order, Package
 from customer.models import DriverProfile
 from delivery.models import Delivery
+from .services import eligible_drivers, least_busy_driver
 from django.db import transaction
 from django.utils import timezone
 
@@ -67,16 +68,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         if not getattr(user, "customer_profile", None) or not user.customer_profile.is_complete:
             raise serializers.ValidationError("Complete your profile before placing an order.")
 
-        driver = (
-            DriverProfile.objects
-            .filter(
-                availability_status=True,
-                is_complete=True,
-                approval_status="approved"
-            )
-            .exclude(dorders__order_status__in=["pending", "assigned"]) 
-            .first()
-        )
+        driver = least_busy_driver()
 
         order = Order.objects.create(
             customer_id=user,
@@ -93,23 +85,35 @@ class OrderAssignSerializer(serializers.Serializer):
     driver_email = serializers.EmailField(required=True)
 
     def validate_driver_email(self, value):
-        try:
-            driver = DriverProfile.objects.get(user__email=value)
-        except DriverProfile.DoesNotExist:
-            raise serializers.ValidationError("Driver not found.")
-
-        if not driver.is_complete or not driver.is_approved or not driver.availability_status:
-            raise serializers.ValidationError("Driver is not available for assignment.")
+        if not eligible_drivers().filter(user__email=value).exists():
+            raise serializers.ValidationError("Driver is not eligible or available for assignment.")
         return value
 
-    def save(self, **kwargs):
+    def validate(self, attrs):
         order = self.context["order"]
-        driver = DriverProfile.objects.get(user__email=self.validated_data["driver_email"])
+        if order.order_status not in [Order.Status.PENDING, Order.Status.ASSIGNED]:
+            raise serializers.ValidationError("Only pending or assigned orders can be reassigned.")
+        if Delivery.objects.filter(package_id__order_id=order).exclude(
+            delivery_status=Delivery.Status.ASSIGNED
+        ).exists():
+            raise serializers.ValidationError("Cannot reassign an order after deliveries have started.")
+        return attrs
 
-        order.driver_id = driver
-        order.order_status = "assigned"
-        order.save()
-
+    def save(self, **kwargs):
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=self.context["order"].pk)
+            self.context["order"] = order
+            self.validate(self.validated_data)
+            try:
+                driver = eligible_drivers().select_for_update().get(
+                    user__email=self.validated_data["driver_email"]
+                )
+            except DriverProfile.DoesNotExist:
+                raise serializers.ValidationError("Driver is not eligible or available for assignment.")
+            order.driver_id = driver
+            order.order_status = Order.Status.ASSIGNED
+            order.save()
+            Delivery.objects.filter(package_id__order_id=order).update(rider=driver)
         return order
     
 

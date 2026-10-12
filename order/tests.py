@@ -13,7 +13,7 @@ class OrderWorkflowTests(APITestCase):
         CustomerProfile.objects.filter(user=self.customer).update(is_complete=True)
         self.customer.refresh_from_db()
         self.driver_user = CustomUser.objects.create_user('driver@example.com', None, role='driver', is_active=True)
-        DriverProfile.objects.filter(user=self.driver_user).update(is_complete=True)
+        DriverProfile.objects.filter(user=self.driver_user).update(is_complete=True, approval_status="approved", is_approved=True)
         self.driver_user.refresh_from_db()
         self.driver = self.driver_user.driverprofile
         self.order = Order.objects.create(customer_id=self.customer, driver_id=self.driver, order_status='assigned')
@@ -120,3 +120,132 @@ class OrderWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.order.refresh_from_db()
         self.assertEqual(self.order.order_status, 'in_transit')
+
+    def admin_client(self):
+        admin = CustomUser.objects.create_user('admin@example.com', None, role='admin', is_active=True, is_staff=True)
+        self.client.force_authenticate(admin)
+
+    def another_driver(self):
+        user = CustomUser.objects.create_user('next@example.com', None, role='driver', is_active=True)
+        profile = DriverProfile.objects.get(user=user)
+        profile.is_complete = True
+        profile.approval_status = 'approved'
+        profile.save()
+        return profile
+
+    def assign(self, driver):
+        return self.client.put('/api/v1/order/assign/', {'order_id': self.order.pk, 'driver_email': driver.user.email}, format='json')
+
+    def test_manual_reassignment_updates_existing_deliveries(self):
+        driver = self.another_driver()
+        self.admin_client()
+        response = self.assign(driver)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.order.refresh_from_db()
+        self.delivery.refresh_from_db()
+        self.assertEqual(self.order.driver_id, driver)
+        self.assertEqual(self.delivery.rider, driver)
+
+    def test_reassignment_rejects_active_and_terminal_orders(self):
+        driver = self.another_driver()
+        self.admin_client()
+        for state in ['in_transit', 'cancelled', 'delivered']:
+            with self.subTest(state=state):
+                self.order.order_status = state
+                self.order.save()
+                response = self.assign(driver)
+                self.assertEqual(response.status_code, 400, response.data)
+                self.delivery.refresh_from_db()
+                self.assertEqual(self.delivery.rider, self.driver)
+
+    def test_rejected_driver_with_stale_approval_flag_cannot_be_assigned(self):
+        driver = self.another_driver()
+        driver.approval_status = 'rejected'
+        driver.is_approved = True
+        driver.save()
+        self.admin_client()
+        self.assertEqual(self.assign(driver).status_code, 400)
+
+    def test_approval_endpoint_rejects_previously_approved_driver(self):
+        self.admin_client()
+        response = self.client.put('/api/v1/admin/driver/approve/', {
+            'email': self.driver_user.email, 'action': 'reject', 'rejection_reason': 'Expired license'
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.approval_status, 'rejected')
+        self.assertFalse(self.driver.is_approved)
+        self.assertEqual(self.driver.rejection_reason, 'Expired license')
+
+    def test_auto_assignment_selects_least_busy_eligible_driver(self):
+        driver = self.another_driver()
+        self.client.force_authenticate(self.customer)
+        response = self.client.post('/api/v1/order/create/', {'pickup_address': 'Accra'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(Order.objects.get(pk=response.data['id']).driver_id, driver)
+
+    def test_driver_can_receive_multiple_active_orders(self):
+        self.order.order_status = 'in_transit'
+        self.order.save()
+        self.client.force_authenticate(self.customer)
+        response = self.client.post('/api/v1/order/create/', {'pickup_address': 'Accra'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(Order.objects.get(pk=response.data['id']).driver_id, self.driver)
+
+    def test_fallback_uses_order_driver(self):
+        self.another_driver()
+        package = Package.objects.create(order_id=self.order)
+        delivery = Delivery.objects.create(package_id=package)
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.rider, self.driver)
+
+    def test_fallback_assigns_pending_order_and_delivery_together(self):
+        order = Order.objects.create(customer_id=self.customer)
+        package = Package.objects.create(order_id=order)
+        delivery = Delivery.objects.create(package_id=package)
+        order.refresh_from_db()
+        delivery.refresh_from_db()
+        self.assertEqual(order.driver_id, self.driver)
+        self.assertEqual(delivery.rider, self.driver)
+        self.assertEqual(order.order_status, 'assigned')
+
+    def test_completed_order_preserves_driver_availability_preference(self):
+        self.driver.availability_status = False
+        self.driver.save()
+        self.assertEqual(self.pickup().status_code, 200)
+        self.assertEqual(self.update_delivery('delivered').status_code, 201)
+        self.driver.refresh_from_db()
+        self.assertFalse(self.driver.availability_status)
+
+    def test_no_eligible_driver_leaves_order_pending(self):
+        self.driver.approval_status = 'rejected'
+        self.driver.save()
+        self.client.force_authenticate(self.customer)
+        response = self.client.post('/api/v1/order/create/', {'pickup_address': 'Accra'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        order = Order.objects.get(pk=response.data['id'])
+        self.assertIsNone(order.driver_id)
+        self.assertEqual(order.order_status, 'pending')
+
+    def test_approval_endpoint_approves_driver(self):
+        self.driver.approval_status = 'rejected'
+        self.driver.rejection_reason = 'Old reason'
+        self.driver.save()
+        self.admin_client()
+        response = self.client.put('/api/v1/admin/driver/approve/', {
+            'email': self.driver_user.email, 'action': 'approve'
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.driver.refresh_from_db()
+        self.assertTrue(self.driver.is_approved)
+        self.assertEqual(self.driver.approval_status, 'approved')
+        self.assertEqual(self.driver.rejection_reason, '')
+
+    def test_auto_assignment_counts_in_transit_orders(self):
+        driver = self.another_driver()
+        self.order.order_status = 'in_transit'
+        self.order.save()
+        self.client.force_authenticate(self.customer)
+        response = self.client.post('/api/v1/order/create/', {'pickup_address': 'Accra'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(Order.objects.get(pk=response.data['id']).driver_id, driver)

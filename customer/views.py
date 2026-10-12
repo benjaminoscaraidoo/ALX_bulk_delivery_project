@@ -507,7 +507,7 @@ class DriverApprovalAPIView(APIView):
                 "New Driver Approval Confirmation",
                 value={
                     "email": "user@gmail.com",
-                    "action": "approved"
+                    "action": "approve"
                 },
                 request_only=True,
             ),
@@ -545,8 +545,11 @@ class DriverApprovalAPIView(APIView):
         if action == "approve":
             profile.approval_status = "approved"
             profile.is_approved = True
+            profile.rejection_reason = ""
         elif action == "reject":
             profile.approval_status = "rejected"
+            profile.is_approved = False
+            profile.rejection_reason = serializer.validated_data.get("rejection_reason", "")
         else:
             return Response(
                 {"detail": "Invalid action. Use 'approve' or 'reject'."},

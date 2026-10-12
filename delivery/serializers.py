@@ -181,8 +181,5 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
                 order.order_status = Order.Status.DELIVERED
                 order.save()
 
-                driver = delivery.rider
-                driver.availability_status = True
-                driver.save()
 
         return delivery

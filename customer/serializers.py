@@ -239,10 +239,10 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 # Serializer for Driver approval after registration and driver profile update
-class DriverApprovalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DriverProfile
-        fields = ["approval_status", "rejection_reason"]
+class DriverApprovalSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    action = serializers.ChoiceField(choices=['approve', 'reject'])
+    rejection_reason = serializers.CharField(required=False, allow_blank=True)
 
 
 # Serializer for User password reset request
