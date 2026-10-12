@@ -53,7 +53,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == "driver":
-            return Delivery.objects.filter(rider=user)
+            return Delivery.objects.filter(rider__user=user)
         if user.role == "admin":
             return Delivery.objects.all()
         #return Delivery.objects.filter(order__customer=user)
@@ -145,7 +145,7 @@ class CreateDeliveriesAPIView(APIView):
     )
 
     def post(self, request):
-        serializer = CreateDeliveriesSerializer(data=request.data)
+        serializer = CreateDeliveriesSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
         try:
@@ -245,7 +245,7 @@ class DeliveryListAPIView(generics.ListAPIView):
         user = self.request.user
 
         if user.role == "driver":
-            return Delivery.objects.filter(rider=user)
+            return Delivery.objects.filter(rider__user=user)
         if user.role == "admin":
             return Delivery.objects.all()
         return Delivery.objects.filter(package_id__order_id__customer_id=user)

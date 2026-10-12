@@ -35,6 +35,10 @@ class DeliveryItemSerializer(serializers.Serializer):
     def validate(self, attrs):
         package = attrs["package_id"]
 
+        request = self.context["request"]
+        if package.order_id.customer_id != request.user:
+            raise serializers.ValidationError("You can only create deliveries for your own packages.")
+
         # Prevent duplicate delivery
         if hasattr(package, "deliveries"):
             raise serializers.ValidationError(

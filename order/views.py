@@ -381,7 +381,7 @@ class PackageListAPIView(generics.ListAPIView):
 
         if user.role == "driver":
             return Package.objects.filter(
-                order_id__deliveries__rider=user
+                order_id__driver_id__user=user
             )
 
         # customer
