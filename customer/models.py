@@ -35,9 +35,13 @@ class CustomUserManager(BaseUserManager):
 
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("is_active", False)
+        extra_fields.setdefault("is_active", True)
         extra_fields.setdefault("role", CustomUser.Role.ADMIN)
 
+        if not extra_fields["is_staff"] or not extra_fields["is_superuser"] or not extra_fields["is_active"]:
+            raise ValueError("Superusers must be active staff with superuser privileges.")
+        if extra_fields["role"] != CustomUser.Role.ADMIN:
+            raise ValueError("Superusers must have the admin role.")
         return self.create_user(email,phone_number,password, **extra_fields)
 
 

@@ -9,7 +9,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView, TokenRefreshView
-from .services import send_otp
+from .services import send_otp, verify_otp, confirm_account_token
 from rest_framework_simplejwt.exceptions import TokenError
 from .throttles import OTPVerifyThrottle, OTPRegisterThrottle
 from django.conf import settings
@@ -22,7 +22,6 @@ from .serializers import (
     RegisterRequestSerializer,
     RegisterVerifySerializer,
     RegisterConfirmSerializer,
-    RegisterSuperUserSerializer,
     RegisterRequestSerializer,
     VerifyOTPSerializer,
     PasswordResetRequestSerializer,
@@ -198,60 +197,6 @@ class RegisterRequestAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-# View for SuperUser Registration request
-class RegisterSuperUserRequestAPIView(APIView):
-    throttle_classes = [OTPRegisterThrottle]  # reuse throttle
-    permission_classes = [AllowAny]  # Allow public access
-
-    @extend_schema(
-        tags=["Registration"],
-        summary="SuperUser Register Request",
-        description="Registration Request for SuperUsers",
-        request=RegisterSuperUserSerializer,
-        responses={200: OpenApiResponse(description="If valid email, OTP sent")},
-        examples=[
-            OpenApiExample(
-                "Registration SuperUser Request",
-                value={
-                    "email": "user@gmail.com",
-                    "phone_number": "+2332422...",
-                    "first_name": "Moses",
-                    "last_name": "Azaa",
-                    "password": "StrongPassword",
-                    "password2": "StrongPassword"
-                },
-                request_only=True,
-            ),
-            OpenApiExample(
-                "SuperUser Registration Response",
-                value={
-                    "If valid email, OTP sent"
-                },
-                response_only=True,
-            ),
-        ],
-    )
-
-    def post(self, request):
-
-        serializer = RegisterSuperUserSerializer(data=request.data)
-        if serializer.is_valid():
-    
-            user = serializer.save()
-
-            # Delete old reset OTPs
-            EmailOTP.objects.filter(user=user, otp_purpose="registration").delete()
-
-            send_otp(user, otp_purpose="registration")
-
-            return Response(
-                {"message": "If valid email, OTP sent"},
-                status=status.HTTP_201_CREATED,
-                )
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
 # View for otp verification for registration
 class RegisterVerifyAPIView(APIView):
     throttle_classes = [OTPVerifyThrottle]
@@ -282,45 +227,10 @@ class RegisterVerifyAPIView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        email = serializer.validated_data["email"]
-        otp_entered = serializer.validated_data["otp"]
-
-        try:
-            user = UserR.objects.get(email=email)
-        except UserR.DoesNotExist:
-            return Response({"error": "Invalid request"}, status=400)
-
-        otp_obj = EmailOTP.objects.filter(
-            user=user,
-            otp_purpose="registration",
-            is_verified=False
-        ).last()
-
-        if not otp_obj:
-            return Response({"error": "Invalid OTP"}, status=400)
-
-        if otp_obj.is_locked():
-            return Response({"error": "Too many attempts"}, status=403)
-
-        if otp_obj.is_expired():
-            return Response({"error": "OTP expired"}, status=400)
-
-        if otp_obj.otp != otp_entered:
-            otp_obj.attempt_count += 1
-            otp_obj.save()
-            return Response({"error": "Invalid OTP"}, status=400)
-
-        # Mark OTP verified
-        otp_obj.is_verified = True
-        otp_obj.save()
-
-        # Issue short-lived reset token (5 minutes)
-        token = AccessToken.for_user(user)
-        token["scope"] = "registration"
-
-        return Response({
-            "register_token": str(token)
-        })
+        token = verify_otp(
+            serializer.validated_data["email"], serializer.validated_data["otp"], "registration"
+        )
+        return Response({"register_token": token})
     
 
 # View for Otp confirmation for registration
@@ -341,19 +251,16 @@ class RegisterConfirmAPIView(APIView):
 
         token = serializer.validated_data["register_token"]
 
-        try:
-            access = AccessToken(token)
-        except TokenError:
-            return Response({"error": "Invalid token"}, status=400)
+        def activate(user):
+            from rest_framework.exceptions import ValidationError
+            if user.role not in [CustomUser.Role.CUSTOMER, CustomUser.Role.DRIVER]:
+                raise ValidationError("Only customers and drivers can register publicly.")
+            if user.email != serializer.validated_data["email"] or user.is_active:
+                raise ValidationError("Invalid registration confirmation.")
+            user.is_active = True
+            user.save(update_fields=['is_active'])
 
-        if access.get("scope") != "registration":
-            return Response({"error": "Invalid scope"}, status=403)
-
-        user_id = access["user_id"]
-        user = UserR.objects.get(id=user_id)
-
-        user.is_active = True
-        user.save()
+        user = confirm_account_token(token, "registration", activate)
 
         refresh = RefreshToken.for_user(user)
         
@@ -651,46 +558,12 @@ class PasswordResetVerifyAPIView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        email = serializer.validated_data["email"]
-        otp_entered = serializer.validated_data["otp"]
-
-        try:
-            user = UserR.objects.get(email=email)
-        except UserR.DoesNotExist:
-            return Response({"error": "Invalid request"}, status=400)
-
-        otp_obj = EmailOTP.objects.filter(
-            user=user,
-            otp_purpose="password_reset",
-            is_verified=False
-        ).last()
-
-        if not otp_obj:
-            return Response({"error": "Invalid OTP"}, status=400)
-
-        if otp_obj.is_locked():
-            return Response({"error": "Too many attempts"}, status=403)
-
-        if otp_obj.is_expired():
-            return Response({"error": "OTP expired"}, status=400)
-
-        if otp_obj.otp != otp_entered:
-            otp_obj.attempt_count += 1
-            otp_obj.save()
-            return Response({"error": "Invalid OTP"}, status=400)
-
-        # Mark OTP verified
-        otp_obj.is_verified = True
-        otp_obj.save()
-
-        # Issue short-lived reset token (5 minutes)
-        token = AccessToken.for_user(user)
-        token["scope"] = "password_reset"
-
-        return Response({
-            "reset_token": str(token)
-        })
+        token = verify_otp(
+            serializer.validated_data["email"], serializer.validated_data["otp"], "password_reset"
+        )
+        return Response({"reset_token": token})
     
+
 # View for Passord reset otp confirmation
 class PasswordResetConfirmAPIView(APIView):
 
@@ -698,7 +571,7 @@ class PasswordResetConfirmAPIView(APIView):
         tags=["Password Reset"],
         summary="Confirm Password Reset Token",
         description="Confirm token for Password Reset",
-        request=RegisterConfirmSerializer,
+        request=PasswordResetConfirmSerializer,
         responses={200: OpenApiResponse(description="Password Reset successful")},
         examples=[
             OpenApiExample(
@@ -728,18 +601,16 @@ class PasswordResetConfirmAPIView(APIView):
         token = serializer.validated_data["reset_token"]
         new_password = serializer.validated_data["new_password"]
 
-        try:
-            access = AccessToken(token)
-        except TokenError:
-            return Response({"error": "Invalid token"}, status=400)
+        def reset_password(user):
+            from django.contrib.auth.password_validation import validate_password
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            from rest_framework.exceptions import ValidationError
+            try:
+                validate_password(new_password, user=user)
+            except DjangoValidationError as exc:
+                raise ValidationError({"new_password": exc.messages})
+            user.set_password(new_password)
+            user.save(update_fields=['password'])
 
-        if access.get("scope") != "password_reset":
-            return Response({"error": "Invalid scope"}, status=403)
-
-        user_id = access["user_id"]
-        user = UserR.objects.get(id=user_id)
-
-        user.set_password(new_password)
-        user.save()
-
+        confirm_account_token(token, "password_reset", reset_password)
         return Response({"message": "Password reset successful"})

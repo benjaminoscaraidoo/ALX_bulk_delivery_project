@@ -228,7 +228,7 @@ These interfaces allow developers to:
 
 ```
 git clone https://github.com/benjaminoscaraidoo/ALX_bulk_delivery_project.git
-cd bulk-delivery-api
+cd ALX_bulk_delivery_project
 ```
 
 ### 2️⃣ Create a virtual environment
@@ -260,6 +260,18 @@ pip install -r requirements.txt
 ```
 
 ---
+
+### Configure the environment
+
+Copy `.env.example` to `.env` and set a newly generated `DJANGO_SECRET_KEY` and your email credentials. Do not reuse the secret previously committed to this repository. Replacing the deployed secret invalidates existing signed tokens and sessions.
+
+Administrator accounts are created only on the server:
+
+```
+python manage.py createsuperuser
+```
+
+Public registration accepts only customers and drivers. Registration and password-reset confirmation tokens expire after five minutes, are single-use, and cannot be used as API access tokens.
 
 ### 4️⃣ Run migrations
 

@@ -5,7 +5,6 @@ from .views import (
     RegisterRequestAPIView,
     RoleBasedProfileAPIView,
     DriverApprovalAPIView,
-    RegisterSuperUserRequestAPIView,
     PasswordResetRequestAPIView,
     PasswordResetVerifyAPIView,
     PasswordResetConfirmAPIView,
@@ -26,7 +25,6 @@ urlpatterns = [
     path("v1/password-reset/request/", PasswordResetRequestAPIView.as_view(), name="password-reset-request"),
     path("v1/password-reset/verify/", PasswordResetVerifyAPIView.as_view(), name="password-reset-verify"),
     path("v1/password-reset/confirm/", PasswordResetConfirmAPIView.as_view(), name="password-reset-confirm"),
-    path("v1/register/request/superuser/", RegisterSuperUserRequestAPIView.as_view(), name="api_register_superuser"),
     path("v1/profile/update/", RoleBasedProfileAPIView.as_view(), name="api_role_profile"),
     path("v1/admin/driver/approve/", DriverApprovalAPIView.as_view(), name="driver_approval"),
 

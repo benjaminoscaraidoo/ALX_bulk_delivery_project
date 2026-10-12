@@ -1,4 +1,4 @@
-import random
+import secrets
 
 def generate_otp():
-    return str(random.randint(100000, 999999))
+    return str(secrets.randbelow(900000) + 100000)

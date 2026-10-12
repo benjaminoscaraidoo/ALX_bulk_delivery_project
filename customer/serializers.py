@@ -44,6 +44,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 # Serializer for Customer/Driver registration request
 class RegisterRequestSerializer(serializers.ModelSerializer):
+    role = serializers.ChoiceField(choices=[CustomUser.Role.CUSTOMER, CustomUser.Role.DRIVER])
     password = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
 
@@ -67,11 +68,6 @@ class RegisterRequestSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("password2")
 
-        if validated_data["role"] == "admin":
-
-            if not validated_data["first_name"] or not validated_data["last_name"]:
-                raise serializers.ValidationError("First or Last name missing for Admin user")
-        
         user = User.objects.create_user(
             email=validated_data["email"],
             phone_number=validated_data.get("phone_number"),
@@ -95,41 +91,6 @@ class RegisterConfirmSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
-# Serializer for SuperUser registration request
-class RegisterSuperUserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True)
-    password2 = serializers.CharField(write_only=True, required=True)
-
-    class Meta:
-        model = CustomUser
-        fields = ["email", "phone_number", "first_name","last_name", "password" , "password2"]
-
-    def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Email already exists.")
-        return value
-    
-    def validate(self, attrs):
-        if attrs["password"] != attrs["password2"]:
-            raise serializers.ValidationError({"password": "Passwords do not match."})
-        
-        validate_password(attrs["password"])
-        return attrs
-
-    def create(self, validated_data):
-        validated_data.pop("password2")
-
-        user = User.objects.create_superuser(
-            email=validated_data["email"],
-            first_name=validated_data["first_name"],
-            last_name=validated_data["last_name"],
-            phone_number=validated_data.get("phone_number"),
-            password=validated_data["password"],
-        )
-
-        return user
-    
-    
 # Serializer for Customer profile update after registration
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
@@ -258,7 +219,7 @@ class PasswordResetVerifySerializer(serializers.Serializer):
 # Serializer for User password otp confirm
 class PasswordResetConfirmSerializer(serializers.Serializer):
     reset_token = serializers.CharField()
-    new_password = serializers.CharField(min_length=8)
+    new_password = serializers.CharField(min_length=8, write_only=True)
 
 
 # Serializer for otp verification
