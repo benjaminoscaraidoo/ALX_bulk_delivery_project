@@ -39,6 +39,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'frontend',
     'customer',
     'order',
     'delivery',
@@ -158,6 +159,7 @@ AUTH_PASSWORD_VALIDATORS = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
     'rest_framework_simplejwt.authentication.JWTAuthentication',
+    'rest_framework.authentication.SessionAuthentication',
     ),
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.UserRateThrottle",
@@ -215,3 +217,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 #]
 
 GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
+
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login/"

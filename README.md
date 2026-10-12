@@ -367,3 +367,14 @@ Use `GET /api/v1/pricing/areas/` to select an outside-Accra destination. Create 
 Create a pending payment with `POST /api/v1/payment/create/`, providing `package_id` and `payment_method` (`cash` or `mobile_money`). The amount comes from the quote. The assigned driver confirms cash through `POST /api/v1/payment/<id>/confirm/`; staff administrators confirm mobile money using that endpoint with `transaction_reference`. Customers cannot mark payments as paid. Use `GET /api/v1/search/payment/` to list payments visible to the logged-in user. Payment-provider integration is reserved for a later release.
 
 Existing packages need delivery addresses before quotes can be generated. Existing payment records retain their current state. These changes do not create charges for legacy orders automatically.
+
+
+## Django frontend
+
+The frontend lives in the `frontend` app. Open `/` for the role-specific dashboard, `/login/` to sign in, `/register/` to create a customer or driver account, and `/password-reset/` to reset a password. Administrators are created through `python manage.py createsuperuser`. Profile completion is available at `/profile/`.
+
+Customers can create orders, add packages, obtain quotes, create deliveries, and choose payment methods. Drivers can update assigned orders and confirm cash. Staff can approve drivers, assign orders, set manual quotes, and confirm mobile money. Tariffs remain in Django admin.
+
+Pages use Django session login and call existing APIs with CSRF-protected requests. JWT authentication remains available to other API clients. For a local preview with `DEBUG=False`, use `python manage.py runserver --insecure` so static CSS and JavaScript are served. Production deployment must serve collected static files separately; `--insecure` is only for local development.
+
+For mobile money, the assigned driver or a staff administrator can save the MoMo transaction ID on the order page. The payment stays pending until staff confirms receipt. The admin confirmation form pre-fills the saved ID. The API endpoint is `POST /api/v1/payment/<id>/reference/`, accepting `transaction_reference`; the payment response includes `transaction_recorded_by` and `transaction_recorded_at`.

@@ -6,3 +6,5 @@ Packages accept delivery_address, outside_accra, and delivery_area (area ID). Cu
 POST /api/v1/payment/create/ accepts package_id and payment_method (cash or mobile_money), creating one pending payment using the stored quote amount. GET /api/v1/search/payment/ returns only owned or assigned records (all for staff administrators). POST /api/v1/payment/<id>/confirm/ confirms cash only for the assigned driver, and mobile_money only for a staff administrator, with a transaction_reference required for mobile money. Paid payments cannot be reconfirmed. Customers cannot set amounts, paid dates, or payment status.
 
 Google Routes requires GOOGLE_MAPS_API_KEY and an enabled Routes API. Provider failures return 503, never a zero-distance quote. No payment gateway calls occur in this release.
+
+POST /api/v1/payment/<id>/reference/ accepts transaction_reference for a pending mobile-money payment. Only its assigned driver or a staff administrator may capture the ID. Capture does not confirm receipt. The ID, capturing user and timestamp appear in payment information. Administrator confirmation may reuse the captured ID. Paid records cannot be changed through this endpoint.

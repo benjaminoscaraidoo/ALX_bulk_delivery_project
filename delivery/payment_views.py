@@ -14,7 +14,7 @@ from .models import Payment, Delivery
 class PaymentReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ['id', 'package_id', 'amount', 'payment_method', 'payment_status', 'transaction_reference', 'paid_at', 'confirmed_by']
+        fields = ['id', 'package_id', 'amount', 'payment_method', 'payment_status', 'transaction_reference', 'paid_at', 'confirmed_by', 'transaction_recorded_by', 'transaction_recorded_at']
         read_only_fields = fields
 
 
@@ -88,7 +88,7 @@ class PaymentConfirmAPIView(APIView):
                 raise ValidationError('Cannot confirm payment for a cancelled order.')
             if payment.payment_status != Payment.Status.PENDING:
                 raise ValidationError('Only pending payments can be confirmed.')
-            reference = serializer.validated_data.get('transaction_reference', '').strip()
+            reference = serializer.validated_data.get('transaction_reference', payment.transaction_reference).strip()
             if payment.payment_method == Payment.Method.MOBILE_MONEY and not reference:
                 raise ValidationError('Mobile money transaction reference is required.')
             if reference and Payment.objects.filter(payment_status=Payment.Status.PAID, transaction_reference=reference).exists():
@@ -96,10 +96,47 @@ class PaymentConfirmAPIView(APIView):
             payment.payment_status = Payment.Status.PAID
             payment.paid_at = timezone.localdate()
             payment.confirmed_by = request.user
+            if reference != payment.transaction_reference:
+                payment.transaction_recorded_by = request.user
+                payment.transaction_recorded_at = timezone.now()
             payment.transaction_reference = reference
             try:
                 with transaction.atomic():
                     payment.save()
             except IntegrityError:
                 raise ValidationError("Transaction reference has already been used.")
+        return Response(PaymentReadSerializer(payment).data)
+
+
+class PaymentReferenceSerializer(serializers.Serializer):
+    transaction_reference = serializers.CharField(max_length=150, allow_blank=False)
+
+
+class PaymentReferenceAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(request=PaymentReferenceSerializer, responses={200: PaymentReadSerializer})
+    def post(self, request, pk):
+        serializer = PaymentReferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        initial = get_object_or_404(Payment, pk=pk)
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=initial.package_id.order_id_id)
+            payment = Payment.objects.select_for_update().get(pk=pk)
+            assigned_driver = request.user.role == 'driver' and Delivery.objects.filter(
+                package_id=payment.package_id, rider__user=request.user
+            ).exists()
+            if not request.user.is_staff and not assigned_driver:
+                raise PermissionDenied('Only the assigned driver or an administrator can record the transaction ID.')
+            if payment.payment_method != Payment.Method.MOBILE_MONEY:
+                raise ValidationError('Transaction IDs can only be recorded for mobile-money payments.')
+            if payment.payment_status != Payment.Status.PENDING or order.order_status == Order.Status.CANCELLED:
+                raise ValidationError('Only pending payments on uncancelled orders can be updated.')
+            reference = serializer.validated_data['transaction_reference'].strip()
+            if Payment.objects.filter(payment_status=Payment.Status.PAID, transaction_reference=reference).exists():
+                raise ValidationError('Transaction ID has already been used.')
+            payment.transaction_reference = reference
+            payment.transaction_recorded_by = request.user
+            payment.transaction_recorded_at = timezone.now()
+            payment.save(update_fields=['transaction_reference', 'transaction_recorded_by', 'transaction_recorded_at'])
         return Response(PaymentReadSerializer(payment).data)

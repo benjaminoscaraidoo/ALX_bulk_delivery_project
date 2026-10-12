@@ -21,7 +21,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = "__all__"
-        read_only_fields = ("amount", "payment_status", "paid_at", "confirmed_by", "transaction_reference")
+        read_only_fields = ("amount", "payment_status", "paid_at", "confirmed_by", "transaction_reference", "transaction_recorded_by", "transaction_recorded_at")
 
 
 # Serializer for DeliveryItem

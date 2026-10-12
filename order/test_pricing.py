@@ -134,3 +134,57 @@ class PricingPaymentTests(APITestCase):
         import json
         self.assertEqual(json.loads(request.data)['travelMode'], 'DRIVE')
         self.assertEqual(request.get_header('X-goog-fieldmask'), 'routes.distanceMeters')
+
+    def record_reference(self, payment, reference='MOMO-12345'):
+        return self.client.post(f'/api/v1/payment/{payment.pk}/reference/', {'transaction_reference': reference}, format='json')
+
+    def test_driver_records_momo_id_without_confirming_payment(self):
+        self.quote()
+        self.payment('mobile_money')
+        payment = Payment.objects.get(package_id=self.package)
+        self.client.force_authenticate(self.driver)
+        response = self.record_reference(payment)
+        self.assertEqual(response.status_code, 200, response.data)
+        payment.refresh_from_db()
+        self.assertEqual(payment.transaction_reference, 'MOMO-12345')
+        self.assertEqual(payment.transaction_recorded_by, self.driver)
+        self.assertIsNotNone(payment.transaction_recorded_at)
+        self.assertEqual(payment.payment_status, 'pending')
+        self.assertIsNone(payment.confirmed_by)
+        self.assertEqual(self.confirm(payment).status_code, 403)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.confirm(payment).status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, 'paid')
+        self.assertEqual(payment.transaction_recorded_by, self.driver)
+        self.assertEqual(payment.confirmed_by, self.admin)
+        self.assertEqual(self.record_reference(payment, 'CHANGED').status_code, 400)
+
+    def test_admin_can_record_momo_id(self):
+        self.quote()
+        self.payment('mobile_money')
+        payment = Payment.objects.get(package_id=self.package)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.record_reference(payment).status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(payment.transaction_recorded_by, self.admin)
+        self.assertEqual(payment.payment_status, 'pending')
+
+    def test_customer_and_unassigned_driver_cannot_record_momo_id(self):
+        self.quote()
+        self.payment('mobile_money')
+        payment = Payment.objects.get(package_id=self.package)
+        self.assertEqual(self.record_reference(payment).status_code, 403)
+        stranger = CustomUser.objects.create_user('stranger-driver@example.com', None, role='driver', is_active=True)
+        self.client.force_authenticate(stranger)
+        self.assertEqual(self.record_reference(payment).status_code, 403)
+        payment.refresh_from_db()
+        self.assertEqual(payment.transaction_reference, '')
+
+    def test_reference_capture_rejects_cash_and_blank_ids(self):
+        self.quote()
+        self.payment()
+        payment = Payment.objects.get(package_id=self.package)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.record_reference(payment).status_code, 400)
+        self.assertEqual(self.record_reference(payment, '   ').status_code, 400)

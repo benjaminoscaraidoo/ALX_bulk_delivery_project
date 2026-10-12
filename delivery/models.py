@@ -69,6 +69,8 @@ class Payment(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     payment_method = models.CharField(max_length=20, choices=Method.choices)
     transaction_reference = models.CharField(max_length=150, blank=True)
+    transaction_recorded_by = models.ForeignKey("customer.CustomUser", null=True, blank=True, on_delete=models.SET_NULL, related_name="recorded_payment_references")
+    transaction_recorded_at = models.DateTimeField(null=True, blank=True)
     confirmed_by = models.ForeignKey("customer.CustomUser", null=True, blank=True, on_delete=models.SET_NULL)
     paid_at = models.DateField(null=True,blank=True)
     payment_status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING) 
