@@ -6,3 +6,5 @@
 .brand-mark{background:#ef6413}.brand-name strong{color:#d74d0a}
 
 .route-stops{padding-left:28px}.route-stops li{padding:16px 8px;border-bottom:1px solid var(--line)}.route-stops li::marker{color:var(--primary);font-weight:700}.route-stops p{margin:8px 0;overflow-wrap:anywhere}.route-stops a{font-size:13px}
+
+.status.failed{background:#ffebe5;color:#a33515}.status.returning{background:#fff0d1;color:#956924}.status.returned,.status.completed_returns{background:#f0e9e4;color:#78543e}summary{cursor:pointer;font-weight:600}

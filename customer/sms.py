@@ -30,8 +30,12 @@ def check_sms_configuration():
 
 
 def send_sms_otp(phone, code):
+    return send_sms(phone, f'OY Delivery Services: your verification code is {code}. It expires in 5 minutes. Do not share this code.')
+
+
+def send_sms(phone, body):
     check_sms_configuration()
-    data = {'To': normalize_phone(phone), 'Body': f'OY Delivery Services: your verification code is {code}. It expires in 5 minutes. Do not share this code.'}
+    data = {'To': normalize_phone(phone), 'Body': body}
     if settings.TWILIO_MESSAGING_SERVICE_SID:
         data['MessagingServiceSid'] = settings.TWILIO_MESSAGING_SERVICE_SID
     else:

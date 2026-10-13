@@ -26,7 +26,7 @@ class OrderWorkflowTests(APITestCase):
 
     def update_delivery(self, new_status):
         self.client.force_authenticate(self.driver_user)
-        return self.client.put('/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': new_status}, format='json')
+        return self.client.put('/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': new_status, 'received_by': 'Test recipient'}, format='json')
 
     def cancel(self):
         self.client.force_authenticate(self.customer)

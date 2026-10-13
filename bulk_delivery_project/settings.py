@@ -45,6 +45,7 @@ if PRODUCTION and DEBUG:
 
 INSTALLED_APPS = [
     'frontend',
+    'notifications',
     'customer',
     'order',
     'delivery',
@@ -83,6 +84,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'notifications.context_processors.inbox',
             ],
         },
     },
@@ -236,3 +238,12 @@ AUTHENTICATION_BACKENDS = ["customer.authentication.VerifiedContactBackend"]
 
 # Route planning runs after delivery creation / assignment, outside DB transactions.
 AUTO_ROUTE_PLANNING = env.bool("AUTO_ROUTE_PLANNING", default=True)
+
+# Private delivery photos are served only through the authenticated proof endpoint.
+DELIVERY_PROOF_ROOT = env("DELIVERY_PROOF_ROOT", default=str(BASE_DIR / "private_media"))
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
+
+NOTIFICATION_SEND_IMMEDIATELY = env.bool("NOTIFICATION_SEND_IMMEDIATELY", default=True)
+PUBLIC_APP_URL = env("PUBLIC_APP_URL", default="")
+EMAIL_TIMEOUT = 10

@@ -16,6 +16,8 @@ class Order(models.Model):
         IN_TRANSIT = "in_transit"
         DELIVERED = "delivered"
         CANCELLED = "cancelled"
+        RETURNED = "returned", "Returned to sender"
+        COMPLETED_RETURNS = "completed_returns", "Completed with returns"
         
     id = models.CharField(
         primary_key=True,

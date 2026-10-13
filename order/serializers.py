@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Order, Package
 from customer.models import DriverProfile
-from delivery.models import Delivery
+from delivery.models import Delivery, DeliveryEvent
 from .services import eligible_drivers, least_busy_driver
 from django.db import transaction
 from django.utils import timezone
@@ -160,11 +160,14 @@ class OrderCancelSerializer(serializers.Serializer):
                 "You can only add packages to your own order."
             )
         
-        if order.order_status in ["delivered"]:
+        if order.order_status in ["delivered", "returned", "completed_returns"]:
             raise serializers.ValidationError(
                 "Cannot cancel delivered order."
             )
         
+
+        if Delivery.objects.filter(package_id__order_id=order, delivery_status__in=['failed', 'returning', 'returned']).exists():
+            raise serializers.ValidationError('Failed deliveries and returns must be resolved by an administrator before closing the order.')
 
         delivered_count = Delivery.objects.filter(
                 package_id__order_id=order.id,
@@ -277,7 +280,7 @@ class PackageDetailsUpdateSerializer(serializers.Serializer):
             )
         
 
-        if delivery.delivery_status in ["delivered"]:
+        if delivery.delivery_status in ["delivered", "returned", "returning"]:
             raise serializers.ValidationError(
                 "You cannot update receiver details for delivered items."
             )
@@ -359,6 +362,9 @@ class OrderUpdateSerializer(serializers.Serializer):
             self.validate({**validated_data, "order": order})
             deliveries = Delivery.objects.select_for_update().filter(package_id__order_id=order.pk)
             deliveries.update(delivery_status=Delivery.Status.PICKED_UP, picked_up_at=timezone.now())
+            DeliveryEvent.objects.bulk_create([DeliveryEvent(delivery=delivery, action='picked_up', actor=self.context['request'].user) for delivery in deliveries])
+            from notifications.services import publish
+            publish(order, f'order:{order.pk}:picked_up', 'Order picked up', f'All packages in order {order.pk} have been picked up.')
             order.order_status = Order.Status.IN_TRANSIT
             order.save()
         return order

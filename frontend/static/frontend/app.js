@@ -9,7 +9,10 @@
     return String(value);
   };
   const send = async (form, url, data, method = 'POST') => {
-    const response = await fetch(url, {method, credentials: 'same-origin', headers: {'Content-Type':'application/json', 'X-CSRFToken':form.querySelector('[name=csrfmiddlewaretoken]').value}, body:JSON.stringify(data)});
+    const multipart = data instanceof FormData;
+    const headers = {'X-CSRFToken':form.querySelector('[name=csrfmiddlewaretoken]').value};
+    if (!multipart) headers['Content-Type'] = 'application/json';
+    const response = await fetch(url, {method, credentials: 'same-origin', headers, body: multipart ? data : JSON.stringify(data)});
     const body = await response.json().catch(() => ({detail:'The server could not complete this request. Please try again.'}));
     if (!response.ok) throw new Error(errors(body));
     return body;
@@ -116,6 +119,10 @@
           let payload = data;
           if (form.dataset.mode === 'package') {const {order_id, ...parcel} = data; payload = {order_id, packages:[parcel]};}
           if (form.dataset.mode === 'delivery') payload = {deliveries:[data]};
+          if (form.dataset.upload) {
+            payload = new FormData(form); payload.delete('csrfmiddlewaretoken');
+            for (const [key, value] of [...payload.entries()]) if (value instanceof File && !value.size) payload.delete(key);
+          }
           const result = await send(form, form.dataset.api, payload, form.dataset.method || 'POST');
           if (result.quote_required) {message(form, 'This delivery needs an administrator quote. Please contact support.'); return;}
           if (form.dataset.mode === 'order') window.location.assign(`/orders/${encodeURIComponent(result.id)}/`);

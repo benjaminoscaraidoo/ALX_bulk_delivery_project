@@ -28,11 +28,14 @@ def collect_stops(driver_id):
         if not packages or not order.pickup_address or any(d is None or d.rider_id != driver_id or not (d.address or p.delivery_address).strip() for p, d in deliveries):
             waiting += 1
             continue
-        remaining = [(p, d) for p, d in deliveries if d.delivery_status in ['assigned', 'picked_up']]
+        remaining = [(p, d) for p, d in deliveries if d.delivery_status in ['assigned', 'picked_up', 'returning']]
         pickup_key = f'pickup:{order.pk}'
         if any(d.delivery_status == 'assigned' for p, d in remaining):
             stops.append(dict(key=pickup_key, kind='pickup', address=order.pickup_address.strip(), order_id=order.pk, requires=None))
         for package, delivery in remaining:
+            if delivery.delivery_status == 'returning':
+                stops.append(dict(key=f'return:{delivery.pk}', kind='return', address=order.pickup_address.strip(), order_id=order.pk, package_id=package.pk, delivery_id=delivery.pk, recipient='Sender', requires=None))
+                continue
             stops.append(dict(key=f'delivery:{delivery.pk}', kind='delivery', address=(delivery.address or package.delivery_address).strip(), order_id=order.pk, package_id=package.pk, delivery_id=delivery.pk, recipient=package.receiver_name, requires=pickup_key if delivery.delivery_status == 'assigned' else None))
     return stops, waiting
 

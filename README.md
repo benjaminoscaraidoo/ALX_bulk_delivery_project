@@ -422,3 +422,11 @@ Customer profile completion now requires a name, address and verified contact ph
 ### Combined driver routes
 
 Drivers now see a single ordered pickup/delivery route for their ready active orders. Routes finish at the final delivery and preserve pickup-before-delivery rules. Google Routes driving times guide the sequence; drivers can update their starting address and recalculate. See [driver route setup and limits](docs/driver-routes.md).
+
+### Delivery handover and failed attempts
+
+Drivers capture the actual recipient's name with an optional private photo. Failed attempts retain a history and require an administrator's retry or return decision. See [delivery completion and deployment](docs/delivery-completion.md).
+
+### Customer updates
+
+Customers receive in-app updates for pickup, delivery attempts, delivery/return completion and confirmed payments. Verified email and phone contacts receive external updates through the existing email/Twilio setup. Failed sends remain in an audited retry queue. See [customer notification setup](docs/customer-notifications.md).

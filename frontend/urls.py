@@ -4,6 +4,7 @@ from . import views
 
 app_name = 'frontend'
 urlpatterns = [
+    path('notifications/', views.notifications, name='notifications'),
     path('', views.dashboard, name='dashboard'),
     path('login/', views.SignInView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),

@@ -88,7 +88,7 @@ class CompleteOrderWorkflowTests(APITestCase):
         self.assertEqual(order.order_status, 'in_transit')
         for index, package_id in enumerate(packages):
             self.put('/api/v1/delivery/update/', {
-                'package_id': package_id, 'delivery_status': 'delivered',
+                'package_id': package_id, 'delivery_status': 'delivered', 'received_by': 'Test recipient',
             }, 201)
             order.refresh_from_db()
             self.assertEqual(order.order_status, 'in_transit' if index == 0 else 'delivered')

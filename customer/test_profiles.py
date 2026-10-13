@@ -77,7 +77,7 @@ class ProfileValidationTests(APITestCase):
         Delivery.objects.create(package_id=package, rider=profile, delivery_status='picked_up')
         self.assertEqual(self.update(self.driver, {'license_number': 'NEW-LICENSE'}).status_code, 200)
         self.driver.refresh_from_db()
-        response = self.client.put('/api/v1/delivery/update/', {'package_id': package.pk, 'delivery_status': 'delivered'}, format='json')
+        response = self.client.put('/api/v1/delivery/update/', {'package_id': package.pk, 'delivery_status': 'delivered', 'received_by': 'Test recipient'}, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         order.refresh_from_db()
         self.assertEqual(order.order_status, 'delivered')

@@ -1,11 +1,19 @@
 from rest_framework import serializers
 from .models import Delivery, Payment
+from .lifecycle import FAILURE_REASONS
+from drf_spectacular.utils import extend_schema_field, OpenApiTypes
 from order.models import Package, Order
 from django.utils import timezone
 from django.db import transaction, IntegrityError
 
 # Serializer for Delivery
 class DeliverySerializer(serializers.ModelSerializer):
+    proof_photo = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_proof_photo(self, obj):
+        return f'/api/v1/delivery/{obj.pk}/proof/' if obj.proof_photo else None
+
     class Meta:
         model = Delivery
         fields = "__all__"
@@ -94,99 +102,34 @@ class CreateDeliveriesSerializer(serializers.Serializer):
             raise serializers.ValidationError("A delivery already exists for one of these packages. Refresh and try again.")
 
 
+@extend_schema_field(OpenApiTypes.BINARY)
+class ProofPhotoField(serializers.FileField):
+    pass
+
+
 # Serializer for Delivery status update by assigned driver/riders
 class DriverDeliveryUpdateSerializer(serializers.Serializer):
+    package_id = serializers.PrimaryKeyRelatedField(queryset=Package.objects.all(), source='package', write_only=True)
+    delivery_status = serializers.ChoiceField(choices=['picked_up', 'delivered', 'failed', 'returned'])
+    delivery_notes = serializers.CharField(max_length=300, required=False, allow_blank=True)
+    received_by = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    failure_reason = serializers.ChoiceField(choices=FAILURE_REASONS, required=False)
+    proof_photo = ProofPhotoField(required=False)
 
-    package_id = serializers.PrimaryKeyRelatedField(
-        queryset=Package.objects.all(),
-        source="package",
-        write_only=True
-    )
-
-    delivery_status = serializers.CharField(required=True)
-    delivery_notes = serializers.CharField(required=False, allow_blank=True)
+    def validate_proof_photo(self, value):
+        from .proof import clean_photo
+        return clean_photo(value)
 
     def validate(self, attrs):
-        package = attrs["package"]
-        request = self.context["request"]
-
-        # Get delivery from package
+        from .lifecycle import validate_driver_action
         try:
-            delivery = package.deliveries
+            delivery = attrs['package'].deliveries
         except Delivery.DoesNotExist:
-            raise serializers.ValidationError("Delivery not found.")
-        
-                
-        # Ensure delivery belongs to this rider
-        if not delivery.rider or delivery.rider.user_id != request.user.pk:
-            raise serializers.ValidationError(
-                "You can only update deliveries assigned to you."
-            )
-        
-        if package.order_id.order_status in [Order.Status.CANCELLED, Order.Status.DELIVERED]:
-            raise serializers.ValidationError("Cannot update deliveries for a cancelled or completed order.")
-
-        new_delivery_status = attrs["delivery_status"]
-        current_status = delivery.delivery_status
-
-        # Prevent rollback
-        valid_transitions = {
-            "assigned": ["picked_up"],
-            "picked_up": ["delivered"],
-            "delivered": []
-        }
-
-        if new_delivery_status not in valid_transitions.get(current_status, []):
-            raise serializers.ValidationError(
-                f"Invalid status transition from '{current_status}' to '{new_delivery_status}'."
-            )
-
-        attrs["delivery"] = delivery
+            raise serializers.ValidationError('Delivery not found.')
+        validate_driver_action(delivery, self.context['request'].user, attrs)
+        attrs['delivery'] = delivery
         return attrs
 
     def create(self, validated_data):
-
-        with transaction.atomic():
-
-            order = Order.objects.select_for_update().get(
-                pk=validated_data["delivery"].package_id.order_id_id
-            )
-            delivery = Delivery.objects.select_for_update().get(
-                pk=validated_data["delivery"].pk
-            )
-
-            package = delivery.package_id
-            package.deliveries = delivery
-            package.order_id = order
-            self.validate({**validated_data, "package": package})
-
-            new_status = validated_data["delivery_status"]
-            delivery.delivery_notes = validated_data.get("delivery_notes", "")
-
-            if new_status == "picked_up":
-                delivery.picked_up_at = timezone.now()
-
-            if new_status == "delivered":
-                delivery.delivered_at = timezone.now()
-
-            delivery.delivery_status = new_status
-            delivery.save()
-
-
-            if new_status == "picked_up" and order.order_status != Order.Status.IN_TRANSIT:
-                order.order_status = Order.Status.IN_TRANSIT
-                order.save()
-
-            total = order.packages.count()
-
-            delivered_count = Delivery.objects.filter(
-                package_id__order_id=order.id,
-                delivery_status=Delivery.Status.DELIVERED
-            ).count()
-
-            if total > 0 and total == delivered_count:
-                order.order_status = Order.Status.DELIVERED
-                order.save()
-
-
-        return delivery
+        from .lifecycle import driver_action
+        return driver_action(validated_data['delivery'].pk, self.context['request'].user, validated_data)

@@ -5,3 +5,5 @@ djangorestframework_simplejwt==5.5.1
 drf_spectacular==0.29.0
 django-filter==26.2
 django-auto-logout==0.5.1
+
+Pillow==12.3.0

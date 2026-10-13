@@ -12,7 +12,7 @@ from order.models import Order, Package, DeliveryQuote
 from delivery.models import Delivery, Payment
 
 
-@override_settings(AUTO_ROUTE_PLANNING=False)
+@override_settings(AUTO_ROUTE_PLANNING=False, NOTIFICATION_SEND_IMMEDIATELY=False)
 class ConcurrentWorkflowTests(TransactionTestCase):
     def setUp(self):
         if 'memory' in str(connection.settings_dict['NAME']):
@@ -76,7 +76,7 @@ class ConcurrentWorkflowTests(TransactionTestCase):
         self.order.order_status = 'in_transit'
         self.order.save()
         cancel = lambda: self.request(self.customer, '/api/v1/order/cancel/', {'order_id': self.order.pk, 'cancel_reason': 'Cancelled'}, 'put')
-        deliver = lambda: self.request(self.driver, '/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': 'delivered'}, 'put')
+        deliver = lambda: self.request(self.driver, '/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': 'delivered', 'received_by': 'Test recipient'}, 'put')
         self.assertEqual(sorted(self.race(cancel, deliver)), [201, 400])
         self.order.refresh_from_db()
         delivery.refresh_from_db()
@@ -135,3 +135,22 @@ class ConcurrentWorkflowTests(TransactionTestCase):
         status = self.request(self.customer, '/api/v1/delivery/create/', {'deliveries': [{'package_id': self.package.pk}, {'package_id': self.package.pk}]})
         self.assertEqual(status, 400)
         self.assertFalse(Delivery.objects.filter(package_id=self.package).exists())
+
+    def test_failed_attempt_racing_completion_records_one_outcome(self):
+        delivery = self.delivery()
+        Delivery.objects.filter(pk=delivery.pk).update(delivery_status='picked_up')
+        fail = lambda: self.request(self.driver, '/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': 'failed', 'failure_reason': 'receiver_unavailable'}, 'put')
+        complete = lambda: self.request(self.driver, '/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': 'delivered', 'received_by': 'Recipient'}, 'put')
+        self.assertEqual(sorted(self.race(fail, complete)), [201, 400])
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.events.count(), 1)
+        self.assertEqual(delivery.attempt_count, 1)
+
+    def test_retry_racing_return_records_one_admin_decision(self):
+        delivery = self.delivery()
+        Delivery.objects.filter(pk=delivery.pk).update(delivery_status='failed', attempt_count=1)
+        staff = CustomUser.objects.create_user('resolution-admin@example.com', None, role='admin', is_active=True, is_staff=True)
+        retry = lambda: self.request(staff, f'/api/v1/delivery/{delivery.pk}/resolution/', {'action': 'retry', 'reason': 'Customer available'})
+        send_back = lambda: self.request(staff, f'/api/v1/delivery/{delivery.pk}/resolution/', {'action': 'return', 'reason': 'Customer requested return'})
+        self.assertEqual(sorted(self.race(retry, send_back)), [200, 400])
+        self.assertEqual(delivery.events.count(), 1)

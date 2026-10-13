@@ -4,9 +4,14 @@ from .payment_views import PaymentCreateAPIView, PaymentListAPIView, PaymentConf
 
 from .route_views import DriverRouteAPIView, DriverRouteOptimizeAPIView
 
+from .lifecycle_views import DeliveryResolutionAPIView, DeliveryHistoryAPIView, DeliveryProofAPIView
+
 app_name = "delivery"
 
 urlpatterns = [
+    path('v1/delivery/<str:pk>/resolution/', DeliveryResolutionAPIView.as_view()),
+    path('v1/delivery/<str:pk>/history/', DeliveryHistoryAPIView.as_view()),
+    path('v1/delivery/<str:pk>/proof/', DeliveryProofAPIView.as_view()),
     path("v1/driver/route/", DriverRouteAPIView.as_view()),
     path("v1/driver/route/optimize/", DriverRouteOptimizeAPIView.as_view()),
     path("v1/payment/<str:pk>/reference/", PaymentReferenceAPIView.as_view()),
