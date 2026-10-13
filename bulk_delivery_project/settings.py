@@ -226,3 +226,13 @@ GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
+
+TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
+TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
+TWILIO_FROM_NUMBER = env("TWILIO_FROM_NUMBER", default="")
+TWILIO_MESSAGING_SERVICE_SID = env("TWILIO_MESSAGING_SERVICE_SID", default="")
+
+AUTHENTICATION_BACKENDS = ["customer.authentication.VerifiedContactBackend"]
+
+# Route planning runs after delivery creation / assignment, outside DB transactions.
+AUTO_ROUTE_PLANNING = env.bool("AUTO_ROUTE_PLANNING", default=True)

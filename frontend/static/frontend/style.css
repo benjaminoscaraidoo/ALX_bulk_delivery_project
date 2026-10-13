@@ -4,3 +4,5 @@
 .brand{letter-spacing:0;gap:12px}.brand-name{display:flex;flex-direction:column;line-height:1.1}.brand-name strong{font-size:27px;color:var(--primary);letter-spacing:-1px}.brand-name>span{font-size:12px;font-weight:600;letter-spacing:.2px;margin-top:4px}.brand-mark{width:43px;height:43px;line-height:43px}.brand-caption{color:#a57252}.dark .form-message{color:#fff2e9}.dark .form-message.error{color:#fff2e9}@media(max-width:650px){.brand-name strong{font-size:24px}.brand-name>span{font-size:11px}}
 
 .brand-mark{background:#ef6413}.brand-name strong{color:#d74d0a}
+
+.route-stops{padding-left:28px}.route-stops li{padding:16px 8px;border-bottom:1px solid var(--line)}.route-stops li::marker{color:var(--primary);font-weight:700}.route-stops p{margin:8px 0;overflow-wrap:anywhere}.route-stops a{font-size:13px}

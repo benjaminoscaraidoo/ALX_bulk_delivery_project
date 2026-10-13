@@ -13,7 +13,7 @@ class ProfileValidationTests(APITestCase):
         cache.clear()
         self.customer = CustomUser.objects.create_user('profile@example.com', '+233240000001', password='Profile!Password739', role='customer', is_active=True, first_name='Ama', last_name='Mensah')
         CustomerProfile.objects.filter(user=self.customer).update(customer_name='Ama Mensah', address='Accra', is_complete=True)
-        self.driver = CustomUser.objects.create_user('profile-driver@example.com', '+233240000002', password='Profile!Password739', role='driver', is_active=True)
+        self.driver = CustomUser.objects.create_user('profile-driver@example.com', '+233240000002', password='Profile!Password739', role='driver', is_active=True, first_name='Kwame', last_name='Mensah')
         DriverProfile.objects.filter(user=self.driver).update(vehicle_type='Motorbike', vehicle_number='GR-1234', license_number='LIC-1234', is_complete=True, is_approved=True, approval_status='approved')
         self.customer.refresh_from_db()
         self.driver.refresh_from_db()

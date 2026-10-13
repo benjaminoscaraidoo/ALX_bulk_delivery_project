@@ -3,7 +3,7 @@ from threading import Barrier
 from unittest.mock import patch
 from django.core.cache import cache
 from django.db import connections, close_old_connections, connection
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from rest_framework.test import APIClient
 from rest_framework.exceptions import ValidationError
 from customer.models import CustomUser, CustomerProfile, DriverProfile, EmailOTP
@@ -12,6 +12,7 @@ from order.models import Order, Package, DeliveryQuote
 from delivery.models import Delivery, Payment
 
 
+@override_settings(AUTO_ROUTE_PLANNING=False)
 class ConcurrentWorkflowTests(TransactionTestCase):
     def setUp(self):
         if 'memory' in str(connection.settings_dict['NAME']):

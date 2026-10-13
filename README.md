@@ -398,3 +398,27 @@ Use a disposable path: the test runner creates and removes this database. Defaul
 ## Production deployment
 
 See [the deployment guide](docs/deployment.md) for PythonAnywhere configuration, backups, migrations, static files, tariff setup and verification. Set `DJANGO_ENV=production` and explicit `DJANGO_ALLOWED_HOSTS` on the server. Production enables HTTPS redirects and secure session/CSRF cookies; local preview remains HTTP-compatible. Trust forwarded HTTPS headers only with `DJANGO_TRUST_PROXY=True` after verifying the host's proxy configuration. HSTS starts at one hour without preload or subdomain enforcement.
+
+
+## Email and SMS verification
+
+Registration and password-reset request/verify endpoints accept `delivery_channel`, either `email` (default) or `sms`. The frontend provides this choice and a resend button. Password-reset SMS uses the phone stored on the account, never a phone supplied in the reset request. SMS codes are bound to their channel and destination, expire after five minutes, and keep the existing attempt limits and single-use confirmation rules. Changing the phone invalidates outstanding SMS confirmations. SMS registration verifies phone possession, not ownership of the login email address.
+
+Configure `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and either `TWILIO_FROM_NUMBER` or `TWILIO_MESSAGING_SERVICE_SID` in the private server environment. Enable sending to the destination countries in Twilio and use a sender permitted for your account. Credentials stay server-side. Apply migrations before using SMS. Provider acceptance does not guarantee handset delivery; check Twilio delivery logs if a code does not arrive. No live SMS is sent by automated tests.
+
+`POST /api/v1/register/resend/` accepts `email`, the original registration `password`, and `delivery_channel` for an inactive customer/driver account. It sends to the stored destination. Existing accounts cannot be overwritten by a registration retry. The phone parser accepts international numbers and interprets local numbers with Ghana as its default region; international format is recommended.
+
+
+## Phone-first onboarding
+
+Customers may register with phone + SMS OTP or email + email OTP. Drivers must register with phone + SMS OTP. Email is optional for phone signup. Each contact has its own verification flag; verifying a phone does not verify an optional email. Login and recovery accept only verified contacts on active accounts. Administrator creation still uses the server management command and requires an email.
+
+Login accepts `identifier` (phone or email) and `password`. Legacy `email` and `phone_number` login keys are also accepted. Registration verification, confirmation, resend and recovery accept `identifier`; use `delivery_channel=sms` for phone codes and `email` for email codes. Phone numbers normalize to international format, with Ghana as the local-number default.
+
+Authenticated users can add or change a contact from **My profile → Login & recovery contacts**. Request verification through `POST /api/v1/account/contact/request/` with `delivery_channel` and `value`, then verify through `/api/v1/account/contact/verify/` with `delivery_channel` and `otp`. The verified contact is linked to the existing account; it cannot belong to another account. Contact updates are applied only after verification, preserving the old login until successful confirmation.
+
+Customer profile completion now requires a name, address and verified contact phone before ordering. Driver completion requires first/last names, verified phone, and vehicle/license details; administrator approval is still required for assignments. Legacy active emails remain verified through migration; legacy entered phones require independent verification before new customer orders. Back up the server database before migration. Staff can approve or assign phone-only drivers using their phone identifier.
+
+### Combined driver routes
+
+Drivers now see a single ordered pickup/delivery route for their ready active orders. Routes finish at the final delivery and preserve pickup-before-delivery rules. Google Routes driving times guide the sequence; drivers can update their starting address and recalculate. See [driver route setup and limits](docs/driver-routes.md).

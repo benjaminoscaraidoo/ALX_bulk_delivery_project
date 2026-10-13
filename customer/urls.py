@@ -1,8 +1,10 @@
 from django.urls import path
+from .contact_views import ContactRequestAPIView, ContactVerifyAPIView
 from .views import (
     MyTokenObtainPairView,
     MyTokenVerifyView,
     RegisterRequestAPIView,
+    RegisterResendAPIView,
     RoleBasedProfileAPIView,
     DriverApprovalAPIView,
     PasswordResetRequestAPIView,
@@ -18,6 +20,9 @@ from .views import (
 app_name = "customer"
 
 urlpatterns = [
+    path("v1/account/contact/request/", ContactRequestAPIView.as_view()),
+    path("v1/account/contact/verify/", ContactVerifyAPIView.as_view()),
+    path("v1/register/resend/", RegisterResendAPIView.as_view(), name="register-resend"),
     path("v1", api_root),
     path("v1/register/request/", RegisterRequestAPIView.as_view(), name="api-register"),
     path("v1/register/verify/", RegisterVerifyAPIView.as_view(), name="api-register-verify"),

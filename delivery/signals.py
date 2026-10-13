@@ -8,3 +8,6 @@ from .services import assign_rider_to_delivery
 def auto_assign_rider(sender, instance, created, **kwargs):
     if created and instance.rider is None:
         assign_rider_to_delivery(instance)
+    if created and instance.rider_id:
+        from .routing import schedule_route
+        schedule_route(instance.rider_id)

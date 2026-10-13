@@ -21,20 +21,39 @@ class UserSerializer(serializers.ModelSerializer):
 
 # Serializer for Customer/Driver registration request
 class RegisterRequestSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    phone_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=20)
     role = serializers.ChoiceField(choices=[CustomUser.Role.CUSTOMER, CustomUser.Role.DRIVER])
+    delivery_channel = serializers.ChoiceField(choices=["email", "sms"], default="email")
     password = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = CustomUser
-        fields = ["email", "phone_number", "role", "password" , "password2"]
+        fields = ["email", "phone_number", "role", "password" , "password2", "delivery_channel"]
 
     def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
+        if not value:
+            return None
+        value = value.lower()
+        if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Email already exists.")
         return value
     
     def validate(self, attrs):
+        from .sms import normalize_phone, check_sms_configuration
+        if attrs.get("role") == "driver" and attrs["delivery_channel"] != "sms":
+            raise serializers.ValidationError("Drivers must register using phone verification.")
+        if attrs.get("phone_number"):
+            attrs["phone_number"] = normalize_phone(attrs["phone_number"])
+            if User.objects.filter(phone_number=attrs["phone_number"]).exists():
+                raise serializers.ValidationError({"phone_number": "This phone number is already in use."})
+        if attrs["delivery_channel"] == "sms":
+            check_sms_configuration()
+            if not attrs.get("phone_number"):
+                raise serializers.ValidationError({"phone_number": "Phone number is required for SMS signup."})
+        elif not attrs.get("email"):
+            raise serializers.ValidationError({"email": "Email is required for email signup."})
         if attrs["password"] != attrs["password2"]:
             raise serializers.ValidationError({"password": "Passwords do not match."})
         
@@ -46,7 +65,7 @@ class RegisterRequestSerializer(serializers.ModelSerializer):
         validated_data.pop("password2")
 
         user = User.objects.create_user(
-            email=validated_data["email"],
+            email=validated_data.get("email"),
             phone_number=validated_data.get("phone_number"),
             role = validated_data.get("role"),
             password=validated_data["password"],
@@ -57,15 +76,26 @@ class RegisterRequestSerializer(serializers.ModelSerializer):
     
 
 # Serializer for registration verification of otp, this is for both customer/drivers and super users
-class RegisterVerifySerializer(serializers.Serializer):
-    email = serializers.EmailField()
+class AccountIdentifierSerializer(serializers.Serializer):
+    identifier = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+    phone_number = serializers.CharField(required=False)
+
+    def validate(self, attrs):
+        identifier = attrs.get('identifier') or attrs.get('email') or attrs.get('phone_number')
+        if not identifier:
+            raise serializers.ValidationError("Enter your phone number or email.")
+        attrs['identifier'] = identifier.strip()
+        return attrs
+
+
+class RegisterVerifySerializer(AccountIdentifierSerializer):
+    delivery_channel = serializers.ChoiceField(choices=['email', 'sms'], default='email')
     otp = serializers.CharField(max_length=6)
 
 
-# Serializer for registration verification of otp, this is for both customer/drivers and super users  
-class RegisterConfirmSerializer(serializers.Serializer):
+class RegisterConfirmSerializer(AccountIdentifierSerializer):
     register_token = serializers.CharField()
-    email = serializers.EmailField()
 
 
 # Serializer for Customer profile update after registration
@@ -83,6 +113,8 @@ class AtomicProfileSerializer(serializers.ModelSerializer):
                 profile.user = user
                 if "phone_number" in user_data:
                     self.validate_phone_number(user_data["phone_number"])
+                if "phone_number" in user_data and user_data["phone_number"] != user.phone_number:
+                    user.phone_verified = False
                 for attr, value in user_data.items():
                     setattr(user, attr, value)
                 user.save()
@@ -94,9 +126,9 @@ class AtomicProfileSerializer(serializers.ModelSerializer):
                     setattr(profile, attr, value)
                 if isinstance(profile, CustomerProfile):
                     profile.customer_name = " ".join(part for part in (user.first_name.strip(), user.last_name.strip()) if part)
-                    profile.is_complete = bool(profile.customer_name and profile.address.strip())
+                    profile.is_complete = bool(profile.customer_name and profile.address.strip() and user.phone_number and user.phone_verified)
                 else:
-                    profile.is_complete = all(
+                    profile.is_complete = bool(user.first_name.strip() and user.last_name.strip() and user.phone_verified) and all(
                         getattr(profile, field).strip()
                         for field in ("vehicle_type", "vehicle_number", "license_number")
                     )
@@ -119,14 +151,13 @@ class CustomerProfileSerializer(AtomicProfileSerializer):
         read_only_fields = ["is_complete"]
 
     def validate_phone_number(self, value):
-        # Clearing an optional phone must use NULL rather than a shared empty string.
-        if not value:
-            return None
-        queryset = User.objects.filter(phone_number=value)
-        if self.instance:
-            queryset = queryset.exclude(pk=self.instance.user_id)
+        from .sms import normalize_phone
+        value = normalize_phone(value) if value else None
+        queryset = User.objects.filter(phone_number=value).exclude(pk=self.instance.user_id if self.instance else None) if value else User.objects.none()
         if queryset.exists():
             raise serializers.ValidationError("This phone number is already in use.")
+        if self.instance and value != self.instance.user.phone_number:
+            raise serializers.ValidationError("Verify the new phone through Login & recovery contacts before changing it.")
         return value
 
 
@@ -138,46 +169,41 @@ class DriverProfileSerializer(AtomicProfileSerializer):
 
 
 # Serializer for JWT token generation for login
-class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        # Add custom claims
-        token['role'] = user.role
-        return token
+class MyTokenObtainPairSerializer(serializers.Serializer):
+    identifier = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+    phone_number = serializers.CharField(required=False)
+    password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        data = super().validate(attrs)
-        user = self.user
-        # Include role in response
-        data['role'] = self.user.role
-        # Optionally include profile completion status
-        if self.user.role == CustomUser.Role.CUSTOMER:
-            profile = getattr(self.user, 'customer_profile', None)
-            data['profile_complete'] = bool(profile and profile.is_complete)
-        elif self.user.role == CustomUser.Role.DRIVER:
-            profile = getattr(self.user, "driverprofile", None)
-            data['profile_complete'] = bool(profile and profile.is_complete)
-        else:
-            data['profile_complete'] = True
-        return data
+        from django.contrib.auth import authenticate
+        from rest_framework.exceptions import AuthenticationFailed
+        from rest_framework_simplejwt.tokens import RefreshToken
+        identifier = attrs.get('identifier') or attrs.get('email') or attrs.get('phone_number')
+        user = authenticate(request=self.context.get('request'), username=identifier, password=attrs['password'])
+        if not user:
+            raise AuthenticationFailed('Invalid credentials or unverified contact.')
+        refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        profile = getattr(user, 'customer_profile', None) if user.role == 'customer' else getattr(user, 'driverprofile', None)
+        return {'refresh': str(refresh), 'access': str(refresh.access_token), 'role': user.role,
+                'profile_complete': bool(profile and profile.is_complete) if user.role != 'admin' else True}
 
 
 # Serializer for Driver approval after registration and driver profile update
-class DriverApprovalSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+class DriverApprovalSerializer(AccountIdentifierSerializer):
     action = serializers.ChoiceField(choices=['approve', 'reject'])
     rejection_reason = serializers.CharField(required=False, allow_blank=True)
 
 
 # Serializer for User password reset request
-class PasswordResetRequestSerializer(serializers.Serializer):
-    email = serializers.EmailField()    
+class PasswordResetRequestSerializer(AccountIdentifierSerializer):
+    delivery_channel = serializers.ChoiceField(choices=["email", "sms"], default="email")
 
     
 # Serializer for User password otp verify
-class PasswordResetVerifySerializer(serializers.Serializer):
-    email = serializers.EmailField()
+class PasswordResetVerifySerializer(AccountIdentifierSerializer):
+    delivery_channel = serializers.ChoiceField(choices=["email", "sms"], default="email")
     otp = serializers.CharField(max_length=6)
 
 # Serializer for User password otp confirm
@@ -191,3 +217,8 @@ class VerifyOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
 
+
+
+class RegisterResendSerializer(AccountIdentifierSerializer):
+    password = serializers.CharField(write_only=True)
+    delivery_channel = serializers.ChoiceField(choices=['email', 'sms'], default='email')

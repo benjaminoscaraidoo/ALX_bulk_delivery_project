@@ -10,11 +10,13 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView, TokenRefreshView
 from .services import send_otp, verify_otp, confirm_account_token
+from .authentication import find_account
 from rest_framework_simplejwt.exceptions import TokenError
 from .throttles import OTPVerifyThrottle, OTPRegisterThrottle
 from django.conf import settings
 
 from .serializers import (
+    RegisterResendSerializer,
     DriverApprovalSerializer,
     CustomerProfileSerializer,
     DriverProfileSerializer,
@@ -185,7 +187,7 @@ class RegisterRequestAPIView(APIView):
     
             user = serializer.save()
 
-            send_otp(user, otp_purpose="registration")
+            send_otp(user, otp_purpose="registration", channel=serializer.validated_data["delivery_channel"])
 
             return Response(
                 {"message": "If valid email, OTP sent"},
@@ -226,7 +228,7 @@ class RegisterVerifyAPIView(APIView):
             return Response(serializer.errors, status=400)
 
         token = verify_otp(
-            serializer.validated_data["email"], serializer.validated_data["otp"], "registration"
+            serializer.validated_data["identifier"], serializer.validated_data["otp"], "registration", serializer.validated_data["delivery_channel"]
         )
         return Response({"register_token": token})
     
@@ -253,10 +255,10 @@ class RegisterConfirmAPIView(APIView):
             from rest_framework.exceptions import ValidationError
             if user.role not in [CustomUser.Role.CUSTOMER, CustomUser.Role.DRIVER]:
                 raise ValidationError("Only customers and drivers can register publicly.")
-            if user.email != serializer.validated_data["email"] or user.is_active:
+            if find_account(serializer.validated_data["identifier"]) != user or user.is_active:
                 raise ValidationError("Invalid registration confirmation.")
             user.is_active = True
-            user.save(update_fields=['is_active'])
+            user.save(update_fields=['is_active', 'email_verified', 'phone_verified'])
 
         user = confirm_account_token(token, "registration", activate)
 
@@ -415,22 +417,11 @@ class DriverApprovalAPIView(APIView):
         serializer = DriverApprovalSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
-        try:
-            email = serializer.validated_data["email"]
-            action = serializer.validated_data["action"]
-
-            if not email:
-                return Response(
-                    {"detail": "Email is required."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            user = get_object_or_404(UserR, email=email, role="driver")
-            profile = get_object_or_404(DriverProfile, user=user)
-        except DriverProfile.DoesNotExist:
-            return Response(
-                {"error": "Driver not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        action = serializer.validated_data["action"]
+        user = find_account(serializer.validated_data["identifier"])
+        if not user or user.role != "driver":
+            return Response({"detail": "Driver not found."}, status=404)
+        profile = get_object_or_404(DriverProfile, user=user)
 
         if action == "approve":
             profile.approval_status = "approved"
@@ -489,15 +480,13 @@ class PasswordResetRequestAPIView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        email = serializer.validated_data["email"]
-
-        try:
-            user = UserR.objects.get(email=email)
-        except UserR.DoesNotExist:
-            # Do NOT reveal if email exists
+        user = find_account(serializer.validated_data['identifier'])
+        channel = serializer.validated_data['delivery_channel']
+        verified = user and (user.phone_verified if channel == 'sms' else user.email_verified)
+        if not user or not user.is_active or not verified:
             return Response({"message": "If account exists, OTP sent"})
 
-        send_otp(user, otp_purpose="password_reset")
+        send_otp(user, otp_purpose="password_reset", channel=serializer.validated_data["delivery_channel"])
 
         return Response({"message": "If account exists, OTP sent"})
     
@@ -539,7 +528,7 @@ class PasswordResetVerifyAPIView(APIView):
             return Response(serializer.errors, status=400)
 
         token = verify_otp(
-            serializer.validated_data["email"], serializer.validated_data["otp"], "password_reset"
+            serializer.validated_data["identifier"], serializer.validated_data["otp"], "password_reset", serializer.validated_data["delivery_channel"]
         )
         return Response({"reset_token": token})
     
@@ -594,3 +583,21 @@ class PasswordResetConfirmAPIView(APIView):
 
         confirm_account_token(token, "password_reset", reset_password)
         return Response({"message": "Password reset successful"})
+
+
+class RegisterResendAPIView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [OTPRegisterThrottle]
+
+    @extend_schema(request=RegisterResendSerializer, responses={200: OpenApiResponse(description='Verification code sent')})
+    def post(self, request):
+        serializer = RegisterResendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        user = find_account(data['identifier'])
+        if user and (user.is_active or user.role not in ['customer', 'driver']):
+            user = None
+        if not user or not user.check_password(data['password']):
+            return Response({'detail': 'Invalid registration credentials.'}, status=400)
+        send_otp(user, 'registration', data['delivery_channel'])
+        return Response({'message': 'Verification code sent.'})

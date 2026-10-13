@@ -11,16 +11,22 @@ from django.contrib.auth import get_user_model
 #Custom BaseUserManager 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self,email,phone_number,password=None, **extra_fields):
-        if not email:
-            raise ValueError("The Email must be set")
+    def create_user(self,email=None,phone_number=None,password=None, **extra_fields):
+        if not email and not phone_number:
+            raise ValueError("An email or phone number is required")
         
 
         # Auto-generate username if not provided
         if not extra_fields.get("username"):
             extra_fields["username"] = f"user_{str(uuid.uuid4())[:8]}"
 
-        email = self.normalize_email(email)
+        email = self.normalize_email(email).lower() if email else None
+        if phone_number:
+            from .sms import normalize_phone
+            phone_number = normalize_phone(phone_number)
+        trusted_active = extra_fields.get("is_active", False)
+        extra_fields.setdefault("email_verified", bool(trusted_active and email))
+        extra_fields.setdefault("phone_verified", bool(trusted_active and phone_number))
 
         user = self.model(
             email = email,
@@ -33,6 +39,8 @@ class CustomUserManager(BaseUserManager):
 
     def create_superuser(self,email,phone_number, password=None, **extra_fields):
 
+        if not email:
+            raise ValueError("Administrator email is required.")
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
@@ -53,7 +61,9 @@ class CustomUser(AbstractUser, PermissionsMixin):
         ADMIN = "admin", "Admin"
 
     username = models.CharField(max_length=150, unique=True, blank=True, null=True)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, null=True, blank=True)
+    email_verified = models.BooleanField(default=False)
+    phone_verified = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices)
     is_active = models.BooleanField(default=False)
@@ -66,7 +76,7 @@ class CustomUser(AbstractUser, PermissionsMixin):
     objects = CustomUserManager()
 
     def __str__(self):
-        return self.email
+        return self.email or self.phone_number or str(self.pk)
 
 
 #CustomerProfile model for customers
@@ -116,6 +126,8 @@ class EmailOTP(models.Model):
     class Purpose(models.TextChoices):
         REGISTRATION = "registration", "Registration"
         PASSWORDRESET = "password_reset", "Password Reset"
+        CONTACTPHONE = "contact_phone", "Verify Phone"
+        CONTACTEMAIL = "contact_email", "Verify Email"
 
     User = get_user_model()
 
@@ -124,6 +136,9 @@ class EmailOTP(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
     otp_purpose = models.CharField(max_length=20, choices=Purpose.choices,default=False)  
+
+    delivery_channel = models.CharField(max_length=5, choices=[("email", "Email"), ("sms", "SMS")], default="email")
+    destination = models.CharField(max_length=254, blank=True)
 
     attempt_count = models.PositiveIntegerField(default=0)
     max_attempts = models.PositiveIntegerField(default=5)

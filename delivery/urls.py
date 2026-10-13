@@ -2,9 +2,13 @@ from .views import CreateDeliveriesAPIView,DriverDeliveryUpdateAPIView,DeliveryL
 from django.urls import path
 from .payment_views import PaymentCreateAPIView, PaymentListAPIView, PaymentConfirmAPIView, PaymentReferenceAPIView
 
+from .route_views import DriverRouteAPIView, DriverRouteOptimizeAPIView
+
 app_name = "delivery"
 
 urlpatterns = [
+    path("v1/driver/route/", DriverRouteAPIView.as_view()),
+    path("v1/driver/route/optimize/", DriverRouteOptimizeAPIView.as_view()),
     path("v1/payment/<str:pk>/reference/", PaymentReferenceAPIView.as_view()),
     path("v1/payment/create/", PaymentCreateAPIView.as_view()),
     path("v1/search/payment/", PaymentListAPIView.as_view()),

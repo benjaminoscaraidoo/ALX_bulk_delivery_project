@@ -91,3 +91,12 @@ class Payment(models.Model):
     def __str__(self):
         return self.transaction_reference
 
+
+
+class DriverRoutePlan(models.Model):
+    driver = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name='route_plan')
+    starting_address = models.CharField(max_length=350)
+    stops = models.JSONField(default=list)
+    distance_meters = models.PositiveIntegerField(default=0)
+    duration_seconds = models.PositiveIntegerField(default=0)
+    generated_at = models.DateTimeField(auto_now=True)

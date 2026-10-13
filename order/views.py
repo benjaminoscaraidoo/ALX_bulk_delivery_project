@@ -122,7 +122,7 @@ class OrderAssignAPIView(APIView):
         tags=["Admin"],
         summary="Assign Driver to Order",
         description="Assign a driver to deliver packages for an Order.",
-        request=inline_serializer(name="OrderAssignmentRequest", fields={"order_id": serializers.CharField(), "driver_email": serializers.EmailField()}),
+        request=inline_serializer(name="OrderAssignmentRequest", fields={"order_id": serializers.CharField(), "driver_identifier": serializers.CharField(required=False), "driver_email": serializers.EmailField(required=False)}),
         responses={200: OpenApiResponse(description="Order Assigned to Driver Successfully")},
         examples=[
             OpenApiExample(

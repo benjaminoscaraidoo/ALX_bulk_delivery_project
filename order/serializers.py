@@ -102,14 +102,16 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
 # Serializer for manually assigning order to a driver/rider
 class OrderAssignSerializer(serializers.Serializer):
-    driver_email = serializers.EmailField(required=True)
-
-    def validate_driver_email(self, value):
-        if not eligible_drivers().filter(user__email=value).exists():
-            raise serializers.ValidationError("Driver is not eligible or available for assignment.")
-        return value
+    driver_identifier = serializers.CharField(required=False)
+    driver_email = serializers.EmailField(required=False)
 
     def validate(self, attrs):
+        from customer.authentication import find_account
+        driver_user = find_account(attrs.get('driver_identifier') or attrs.get('driver_email'))
+        profile = eligible_drivers().filter(user=driver_user).first() if driver_user else None
+        if not profile:
+            raise serializers.ValidationError("Driver is not eligible or available for assignment.")
+        attrs['driver_profile_id'] = profile.pk
         order = self.context["order"]
         if order.order_status not in [Order.Status.PENDING, Order.Status.ASSIGNED]:
             raise serializers.ValidationError("Only pending or assigned orders can be reassigned.")
@@ -126,7 +128,7 @@ class OrderAssignSerializer(serializers.Serializer):
             self.validate(self.validated_data)
             try:
                 driver = eligible_drivers().select_for_update().get(
-                    user__email=self.validated_data["driver_email"]
+                    pk=self.validated_data["driver_profile_id"]
                 )
             except DriverProfile.DoesNotExist:
                 raise serializers.ValidationError("Driver is not eligible or available for assignment.")
@@ -134,6 +136,8 @@ class OrderAssignSerializer(serializers.Serializer):
             order.order_status = Order.Status.ASSIGNED
             order.save()
             Delivery.objects.filter(package_id__order_id=order).update(rider=driver)
+            from delivery.routing import schedule_route
+            schedule_route(driver.pk)
         return order
     
 
