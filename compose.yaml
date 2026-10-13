@@ -1,0 +1,63 @@
+x-runtime: &runtime
+  DJANGO_ENV: production
+  DJANGO_DEBUG: "False"
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set the public hostname and include localhost for checks}
+  DATABASE_URL: ${DATABASE_URL:?Set the PostgreSQL URL using the db hostname}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  NOTIFICATION_SEND_IMMEDIATELY: "False"
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: oy_delivery
+      POSTGRES_USER: oy_delivery
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a private POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oy_delivery -d oy_delivery"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  web:
+    build: .
+    env_file: .env
+    environment:
+      <<: *runtime
+      DELIVERY_PROOF_ROOT: /app/private_media
+    volumes:
+      - delivery_photos:/app/private_media
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+  worker:
+    build: .
+    command: ["python", "manage.py", "send_notifications", "--watch", "--interval", "60"]
+    env_file: .env
+    environment:
+      <<: *runtime
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  delivery_photos:

@@ -9,6 +9,7 @@ from order.models import Order, DeliveryArea
 from delivery.models import Payment, Delivery
 from delivery.routing import current_route
 from customer.models import DriverProfile
+from customer.throttles import LoginThrottle
 
 
 class EmailLoginForm(AuthenticationForm):
@@ -23,6 +24,18 @@ class SignInView(LoginView):
     template_name = 'frontend/login.html'
     authentication_form = EmailLoginForm
     redirect_authenticated_user = True
+
+    def post(self, request, *args, **kwargs):
+        throttle = LoginThrottle()
+        if not throttle.allow_request(request, self):
+            response = render(request, self.template_name, {
+                'form': self.authentication_form(request),
+                'throttle_error': 'Too many sign-in attempts. Please wait a minute and try again.',
+                'next': request.POST.get('next', ''),
+            }, status=429)
+            response['Retry-After'] = str(max(1, math.ceil(throttle.wait() or 60)))
+            return response
+        return super().post(request, *args, **kwargs)
 
 
 def orders_for(user):

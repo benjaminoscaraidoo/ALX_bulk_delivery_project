@@ -7,6 +7,8 @@ from .models import CustomUser, CustomerProfile, DriverProfile
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_user_profile(sender, instance, created, **kwargs):
+    if kwargs.get('raw'):
+        return
     """
     Automatically create profile based on user role
     """

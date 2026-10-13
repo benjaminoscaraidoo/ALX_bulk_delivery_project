@@ -6,6 +6,8 @@ from .services import assign_rider_to_delivery
 
 @receiver(post_save, sender=Delivery)
 def auto_assign_rider(sender, instance, created, **kwargs):
+    if kwargs.get('raw'):
+        return
     if created and instance.rider is None:
         assign_rider_to_delivery(instance)
     if created and instance.rider_id:

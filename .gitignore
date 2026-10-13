@@ -20,3 +20,10 @@ venv/
 Thumbs.db
 # Private delivery proof photos
 private_media/
+
+# Generated static files and private backups
+staticfiles/
+backups/
+*.dump
+.env.*
+!.env.example

@@ -12,7 +12,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenVerifyView,
 from .services import send_otp, verify_otp, confirm_account_token
 from .authentication import find_account
 from rest_framework_simplejwt.exceptions import TokenError
-from .throttles import OTPVerifyThrottle, OTPRegisterThrottle
+from .throttles import OTPVerifyThrottle, OTPRegisterThrottle, LoginThrottle
 from django.conf import settings
 
 from .serializers import (
@@ -55,6 +55,7 @@ def api_root(request):
 
 # View to obtain token pair 
 class MyTokenObtainPairView(TokenObtainPairView):
+    throttle_classes = [LoginThrottle]
     serializer_class = MyTokenObtainPairSerializer
 
     @extend_schema(

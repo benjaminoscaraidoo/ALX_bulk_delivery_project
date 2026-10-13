@@ -127,7 +127,7 @@ class OrderAssignSerializer(serializers.Serializer):
             self.context["order"] = order
             self.validate(self.validated_data)
             try:
-                driver = eligible_drivers().select_for_update().get(
+                driver = eligible_drivers().select_for_update(of=('self',)).get(
                     pk=self.validated_data["driver_profile_id"]
                 )
             except DriverProfile.DoesNotExist:

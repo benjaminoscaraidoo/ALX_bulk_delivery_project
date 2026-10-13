@@ -63,6 +63,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -96,14 +97,20 @@ WSGI_APPLICATION = 'bulk_delivery_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_URL = env('DATABASE_URL', default='')
+if DATABASE_URL:
+    database = env.db_url_config(DATABASE_URL)
+    if database['ENGINE'] != 'django.db.backends.postgresql':
+        raise ImproperlyConfigured('DATABASE_URL must use PostgreSQL. Omit it for local SQLite.')
+    database['CONN_MAX_AGE'] = env.int('DB_CONN_MAX_AGE', default=60)
+    database['CONN_HEALTH_CHECKS'] = True
+    DATABASES = {'default': database}
+else:
+    DATABASES = {'default': {
+        'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3',
         'OPTIONS': {'transaction_mode': 'IMMEDIATE', 'timeout': 20},
         'TEST': {'NAME': env('SQLITE_TEST_DATABASE', default=None)},
-    }
-}
+    }}
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[] if PRODUCTION else ["127.0.0.1", "localhost"])
 if PRODUCTION and (not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS):
@@ -174,7 +181,8 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "5/minute",
-        "user": "10/minute",
+        "user": env("API_USER_RATE", default="60/minute"),
+        "login": "5/minute",
         "otp_verify": "5/minute",
         "otp_register": "3/minute",
     },
@@ -247,3 +255,8 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
 NOTIFICATION_SEND_IMMEDIATELY = env.bool("NOTIFICATION_SEND_IMMEDIATELY", default=True)
 PUBLIC_APP_URL = env("PUBLIC_APP_URL", default="")
 EMAIL_TIMEOUT = 10
+
+# Across web workers, use Redis to share authentication/request throttle state.
+REDIS_URL = env("REDIS_URL", default="")
+if REDIS_URL:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}}

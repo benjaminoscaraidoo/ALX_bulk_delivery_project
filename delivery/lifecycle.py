@@ -43,7 +43,7 @@ def driver_action(delivery_id, user, data):
         with transaction.atomic():
             order_id = Delivery.objects.values_list('package_id__order_id_id', flat=True).get(pk=delivery_id)
             order = Order.objects.select_for_update().get(pk=order_id)
-            delivery = Delivery.objects.select_for_update().select_related('rider', 'package_id__order_id').get(pk=delivery_id)
+            delivery = Delivery.objects.select_for_update(of=('self',)).select_related('rider', 'package_id__order_id').get(pk=delivery_id)
             delivery.package_id.order_id = order
             validate_driver_action(delivery, user, data)
             status = data['delivery_status']

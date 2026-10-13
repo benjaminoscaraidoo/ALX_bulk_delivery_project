@@ -37,7 +37,7 @@ def safely_dispatch(pk):
 def dispatch(pk, retry_now=False):
     now = timezone.now()
     with transaction.atomic():
-        job = NotificationSend.objects.select_for_update().select_related('notification__customer').filter(pk=pk).first()
+        job = NotificationSend.objects.select_for_update(of=('self',)).select_related('notification__customer').filter(pk=pk).first()
         if not job or job.status in ['sent', 'skipped'] or job.attempts >= MAX_ATTEMPTS:
             return False
         if job.status == 'sending' and job.claimed_at and job.claimed_at > now - timedelta(minutes=15):

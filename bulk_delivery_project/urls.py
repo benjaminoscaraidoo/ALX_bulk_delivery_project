@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from core.health import health
 from django.urls import path,include
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -23,6 +24,7 @@ from drf_spectacular.views import (
 )
 
 urlpatterns = [
+    path('health/', health, name='health'),
     path('', include('frontend.urls')),
     path('admin/', admin.site.urls),
     path('api/', include('customer.urls')),

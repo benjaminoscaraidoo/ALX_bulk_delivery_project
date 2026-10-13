@@ -434,3 +434,7 @@ Customers receive in-app updates for pickup, delivery attempts, delivery/return 
 ### Administrator reports
 
 Staff can review dated delivery/payment activity and the current unpaid balance, failed deliveries and driver workloads from **Reports**. CSV exports include all matching records. See [report definitions](docs/admin-reports.md).
+
+### Portable production setup
+
+A Docker/Compose setup is provided with PostgreSQL, Redis, Gunicorn, collected static assets, persistent private photo storage and a continuous notification worker. See [portable deployment and restore rehearsal](docs/portable-deployment.md). Authenticated operations default to 60 requests/minute; login retains 5/minute and OTP registration/verification use separate limits. Local SQLite remains available when `DATABASE_URL` is omitted.
