@@ -68,7 +68,7 @@ def driver_action(delivery_id, user, data):
             DeliveryEvent.objects.create(delivery=delivery, action=status, reason=(dict(FAILURE_REASONS).get(data.get('failure_reason'), '') + ': ' if status == 'failed' else '') + data.get('delivery_notes', ''), received_by=delivery.received_by if status in ['delivered', 'returned'] else '', attempt_number=delivery.attempt_count, actor=user)
             sync_order(order)
             if status == 'failed':
-                schedule_route(delivery.rider_id)
+                schedule_route(delivery.rider_id, force=True, starting_address=data.get('starting_address', ''))
         return delivery
     except Exception:
         if saved_photo:

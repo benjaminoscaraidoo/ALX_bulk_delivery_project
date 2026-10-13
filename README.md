@@ -430,3 +430,7 @@ Drivers capture the actual recipient's name with an optional private photo. Fail
 ### Customer updates
 
 Customers receive in-app updates for pickup, delivery attempts, delivery/return completion and confirmed payments. Verified email and phone contacts receive external updates through the existing email/Twilio setup. Failed sends remain in an audited retry queue. See [customer notification setup](docs/customer-notifications.md).
+
+### Administrator reports
+
+Staff can review dated delivery/payment activity and the current unpaid balance, failed deliveries and driver workloads from **Reports**. CSV exports include all matching records. See [report definitions](docs/admin-reports.md).

@@ -8,7 +8,7 @@ from django.db import transaction
 from rest_framework.exceptions import APIException, ValidationError
 from customer.models import DriverProfile
 from order.models import Order
-from .models import Delivery, DriverRoutePlan
+from .models import Delivery, DeliveryEvent, DriverRoutePlan
 
 logger = logging.getLogger(__name__)
 MAX_STOPS = 24
@@ -183,8 +183,8 @@ def current_route(driver_id):
         return result
     fresh_by_key = {stop['key']: stop for stop in fresh}
     result['stops'] = [fresh_by_key[stop['key']] for stop in plan.stops if stop['key'] in fresh_by_key]
-    result['needs_refresh'] = False
-    if len(fresh) == len(plan.stops):
+    result['needs_refresh'] = bool(fresh) and DeliveryEvent.objects.filter(delivery__rider_id=driver_id, action='failed', created_at__gt=plan.generated_at).exists()
+    if len(fresh) == len(plan.stops) and not result['needs_refresh']:
         result.update(distance_meters=plan.distance_meters, duration_seconds=plan.duration_seconds)
     return result
 
@@ -214,16 +214,16 @@ def optimize_route(driver_id, starting_address='', force=True):
     return current_route(driver_id)
 
 
-def auto_optimize(driver_id):
+def auto_optimize(driver_id, force=False, starting_address=''):
     if not settings.AUTO_ROUTE_PLANNING:
         return
     try:
-        optimize_route(driver_id, force=False)
+        optimize_route(driver_id, starting_address=starting_address, force=force)
     except APIException:
         # A failed mapping request must not fail an otherwise valid delivery creation.
         logger.warning('Driver route needs manual refresh for driver %s.', driver_id)
 
 
-def schedule_route(driver_id):
+def schedule_route(driver_id, force=False, starting_address=''):
     if driver_id:
-        transaction.on_commit(lambda: auto_optimize(driver_id))
+        transaction.on_commit(lambda: auto_optimize(driver_id, force=force, starting_address=starting_address))

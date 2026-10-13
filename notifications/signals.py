@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from delivery.models import DeliveryEvent, Payment
@@ -15,7 +16,7 @@ def delivery_update(sender, instance, created, **kwargs):
 def payment_update(sender, instance, **kwargs):
     if instance.payment_status == 'paid':
         order = instance.package_id.order_id
-        publish(order, f'payment:{instance.pk}:paid', 'Payment confirmed', f'Payment of GHS {instance.amount:.2f} for package {instance.package_id_id} in order {order.pk} has been confirmed.')
+        publish(order, f'payment:{instance.pk}:paid', 'Payment confirmed', f'Payment of GHS {Decimal(instance.amount):.2f} for package {instance.package_id_id} in order {order.pk} has been confirmed.')
 
 
 @receiver(post_save, sender=Order)

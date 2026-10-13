@@ -115,6 +115,7 @@ class DriverDeliveryUpdateSerializer(serializers.Serializer):
     received_by = serializers.CharField(max_length=150, required=False, allow_blank=True)
     failure_reason = serializers.ChoiceField(choices=FAILURE_REASONS, required=False)
     proof_photo = ProofPhotoField(required=False)
+    starting_address = serializers.CharField(max_length=350, required=False, allow_blank=True)
 
     def validate_proof_photo(self, value):
         from .proof import clean_photo

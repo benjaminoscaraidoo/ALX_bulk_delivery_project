@@ -132,12 +132,15 @@ class OrderAssignSerializer(serializers.Serializer):
                 )
             except DriverProfile.DoesNotExist:
                 raise serializers.ValidationError("Driver is not eligible or available for assignment.")
+            previous_driver_id = order.driver_id_id
             order.driver_id = driver
             order.order_status = Order.Status.ASSIGNED
             order.save()
             Delivery.objects.filter(package_id__order_id=order).update(rider=driver)
             from delivery.routing import schedule_route
             schedule_route(driver.pk)
+            if previous_driver_id and previous_driver_id != driver.pk:
+                schedule_route(previous_driver_id, force=True)
         return order
     
 

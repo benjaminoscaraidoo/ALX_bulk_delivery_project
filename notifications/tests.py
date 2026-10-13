@@ -203,3 +203,8 @@ class NotificationTests(APITestCase):
         send.assert_called_once()
         job.refresh_from_db()
         self.assertEqual(job.attempts, 2)
+
+
+    def test_payment_notification_accepts_model_amount_as_string(self):
+        Payment.objects.create(package_id=self.package, payment_method='cash', amount='35.00', payment_status='paid')
+        self.assertIn('GHS 35.00', Notification.objects.get().body)

@@ -24,3 +24,7 @@ Authenticated drivers only; each request operates on the signed-in driver's own 
 - `POST /api/v1/driver/route/optimize/` — optional `starting_address` (up to 350 characters); returns a new plan or a clear validation/provider error.
 
 The plan is persisted in `delivery.DriverRoutePlan`. Apply migrations before running the updated application.
+
+## Recalculation triggers
+
+A failed attempt removes that package from the route and forces a fresh calculation of remaining stops after commit. The driver can enter their current `starting_address` with the failed-attempt update; otherwise the saved route origin is used. This does not imply live GPS tracking. New ready assignments trigger planning for the receiving driver; reassignment also forces recalculation for the previous driver. Incomplete orders wait until their delivery records are ready. Completed stops are pruned without a paid recalculation.

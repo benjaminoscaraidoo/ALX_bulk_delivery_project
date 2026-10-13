@@ -1,9 +1,11 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
 from . import views
+from .reports import reports
 
 app_name = 'frontend'
 urlpatterns = [
+    path('reports/', reports, name='reports'),
     path('notifications/', views.notifications, name='notifications'),
     path('', views.dashboard, name='dashboard'),
     path('login/', views.SignInView.as_view(), name='login'),

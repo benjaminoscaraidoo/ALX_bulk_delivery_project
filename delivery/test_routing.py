@@ -236,3 +236,76 @@ class MixedPickupDeliveryTests(TestCase):
         self.assertTrue(delivered_before_all_pickups)
         self.assertLess(seconds, fixture['previous_duration_seconds'])
         self.assertLess(meters, fixture['previous_distance_meters'])
+
+
+@override_settings(AUTO_ROUTE_PLANNING=True, NOTIFICATION_SEND_IMMEDIATELY=False)
+class RouteRecalculationTests(TestCase):
+    def setUp(self):
+        DriverRoutingTests.setUp(self)
+    def test_failed_attempt_forces_new_matrix_from_driver_current_location(self):
+        self.delivery.delivery_status = 'picked_up'
+        self.delivery.save()
+        package2 = Package.objects.create(order_id=self.order, delivery_address='Remaining stop')
+        delivery2 = Delivery.objects.create(package_id=package2, rider=self.driver, delivery_status='picked_up')
+        with patch('delivery.routing.driving_matrix', side_effect=matrix):
+            optimize_route(self.driver.pk, 'Original start')
+        DriverProfile.objects.filter(pk=self.driver.pk).update(is_complete=True)
+        self.user.refresh_from_db()
+        self.client.force_authenticate(self.user)
+        with patch('delivery.routing.driving_matrix', side_effect=matrix) as provider:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.put('/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': 'failed', 'failure_reason': 'receiver_unavailable', 'starting_address': 'Driver current location'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(provider.call_count, 1)
+        self.assertEqual(provider.call_args.args[0], ['Driver current location', 'Remaining stop'])
+        result = current_route(self.driver.pk)
+        self.assertEqual(result['starting_address'], 'Driver current location')
+        self.assertEqual(result['stops'][0]['delivery_id'], delivery2.pk)
+        self.assertFalse(result['needs_refresh'])
+
+    def test_new_ready_order_added_to_driver_route_after_assignment(self):
+        from order.serializers import OrderAssignSerializer
+        DriverProfile.objects.filter(pk=self.driver.pk).update(is_complete=True, approval_status='approved')
+        new_order = Order.objects.create(customer_id=self.customer, pickup_address='Another pickup')
+        package = Package.objects.create(order_id=new_order, delivery_address='Another drop')
+        Delivery.objects.create(package_id=package, rider=self.driver)
+        with patch('delivery.routing.driving_matrix', side_effect=matrix):
+            optimize_route(self.driver.pk)
+        serializer = OrderAssignSerializer(data={'driver_identifier': self.user.email}, context={'order': new_order})
+        serializer.is_valid(raise_exception=True)
+        with patch('delivery.routing.driving_matrix', side_effect=matrix) as provider:
+            with self.captureOnCommitCallbacks(execute=True):
+                serializer.save()
+        self.assertEqual(provider.call_count, 1)
+        self.assertEqual(len(current_route(self.driver.pk)['stops']), 4)
+
+    def test_failure_recalculation_outage_keeps_update_and_flags_route(self):
+        self.delivery.delivery_status = 'picked_up'
+        self.delivery.save()
+        package = Package.objects.create(order_id=self.order, delivery_address='Remaining destination')
+        Delivery.objects.create(package_id=package, rider=self.driver, delivery_status='picked_up')
+        with patch('delivery.routing.driving_matrix', side_effect=matrix):
+            optimize_route(self.driver.pk, 'Saved location')
+        DriverProfile.objects.filter(pk=self.driver.pk).update(is_complete=True)
+        self.user.refresh_from_db()
+        self.client.force_authenticate(self.user)
+        with patch('delivery.routing.driving_matrix', side_effect=RoutingUnavailable()):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.put('/api/v1/delivery/update/', {'package_id': self.package.pk, 'delivery_status': 'failed', 'failure_reason': 'receiver_unavailable'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        result = current_route(self.driver.pk)
+        self.assertTrue(result['needs_refresh'])
+        self.assertEqual(len(result['stops']), 1)
+        self.assertEqual(result['stops'][0]['address'], 'Remaining destination')
+
+    def test_reassignment_requests_previous_driver_recalculation(self):
+        from order.serializers import OrderAssignSerializer
+        user = CustomUser.objects.create_user('new-route-driver@example.com', None, role='driver', is_active=True)
+        profile = DriverProfile.objects.get(user=user)
+        DriverProfile.objects.filter(pk=profile.pk).update(is_complete=True, approval_status='approved')
+        serializer = OrderAssignSerializer(data={'driver_identifier': user.email}, context={'order': self.order})
+        serializer.is_valid(raise_exception=True)
+        with patch('delivery.routing.schedule_route') as schedule:
+            serializer.save()
+        schedule.assert_any_call(profile.pk)
+        schedule.assert_any_call(self.driver.pk, force=True)
