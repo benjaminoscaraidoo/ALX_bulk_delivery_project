@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -174,3 +175,64 @@ class MatrixTests(TestCase):
         route, seconds, _ = sequence_stops(stops, [[(0,0),(100,1),(1,1)],[(100,1),(0,0),(2,1)],[(1,1),(2,1),(0,0)]])
         self.assertEqual([s['key'] for s in route], ['pickup', 'drop'])
         self.assertEqual(seconds, 102)
+
+
+class MixedPickupDeliveryTests(TestCase):
+    def line_route(self, positions):
+        stops = [
+            dict(key='p1', kind='pickup', requires=None),
+            dict(key='d1', kind='delivery', requires='p1'),
+            dict(key='p2', kind='pickup', requires=None),
+            dict(key='d2', kind='delivery', requires='p2'),
+            dict(key='p3', kind='pickup', requires=None),
+            dict(key='d3', kind='delivery', requires='p3'),
+        ]
+        coordinates = [0] + positions
+        matrix = [[(abs(a-b)*60, abs(a-b)*1000) for b in coordinates] for a in coordinates]
+        return sequence_stops(stops, matrix)
+
+    def test_delivers_along_way_and_at_next_pickup_area(self):
+        # Order 1's drop lies just before the second pickup. Order 2's drop
+        # is at that pickup, before continuing towards the third order.
+        ordered, seconds, meters = self.line_route([0, 9, 10, 10, 20, 30])
+        self.assertEqual([stop['key'] for stop in ordered], ['p1', 'd1', 'p2', 'd2', 'p3', 'd3'])
+        self.assertEqual(seconds, 1800)
+        self.assertEqual(meters, 30000)
+
+    def test_nearby_future_order_delivery_still_waits_for_pickup(self):
+        ordered, _, _ = self.line_route([0, 9, 10, 0, 20, 30])
+        keys = [stop['key'] for stop in ordered]
+        self.assertEqual(keys[0], 'p1')
+        self.assertGreater(keys.index('d2'), keys.index('p2'))
+        self.assertEqual(len(set(keys)), 6)
+
+    def test_already_collected_drop_can_precede_next_pickup(self):
+        stops = [dict(key='pickup', kind='pickup', requires=None),
+                 dict(key='future-drop', kind='delivery', requires='pickup'),
+                 dict(key='collected-drop', kind='delivery', requires=None)]
+        positions = [0, 10, 20, 5]
+        matrix = [[(abs(a-b)*60, abs(a-b)*1000) for b in positions] for a in positions]
+        ordered, seconds, _ = sequence_stops(stops, matrix)
+        self.assertEqual([stop['key'] for stop in ordered], ['collected-drop', 'pickup', 'future-drop'])
+        self.assertEqual(seconds, 1200)
+
+    def test_user_three_order_scenario_interleaves_and_improves_route(self):
+        fixture = json.loads((Path(__file__).parent / 'fixtures' / 'route_three_orders.json').read_text())
+        ordered, seconds, meters = sequence_stops(fixture['stops'], fixture['matrix'])
+        self.assertEqual(len(ordered), 17)
+        self.assertEqual(len({stop['key'] for stop in ordered}), 17)
+        self.assertEqual(ordered[0]['key'], 'Order 1:pickup')
+        seen = set()
+        pending_pickups = 3
+        delivered_before_all_pickups = False
+        for stop in ordered:
+            if stop['requires']:
+                self.assertIn(stop['requires'], seen)
+            if stop['kind'] == 'pickup':
+                pending_pickups -= 1
+            elif pending_pickups:
+                delivered_before_all_pickups = True
+            seen.add(stop['key'])
+        self.assertTrue(delivered_before_all_pickups)
+        self.assertLess(seconds, fixture['previous_duration_seconds'])
+        self.assertLess(meters, fixture['previous_distance_meters'])

@@ -71,7 +71,7 @@ def driving_matrix(addresses):
 
 
 def sequence_stops(stops, matrix):
-    """Nearest feasible stop followed by precedence-safe relocation improvements."""
+    """Compare mixed pickup/delivery paths, then improve their stop positions."""
     remaining, visited, route, current = list(range(len(stops))), set(), [], 0
     while remaining:
         candidates = [i for i in remaining if not stops[i]['requires'] or stops[i]['requires'] in visited]
@@ -83,17 +83,69 @@ def sequence_stops(stops, matrix):
         remaining.remove(chosen)
         current = chosen + 1
 
+    # Complete pickups at the starting point before leaving that location.
+    prefix = []
+    for i in route:
+        if stops[i].get('kind') != 'pickup' or matrix[0][i + 1][0] != 0:
+            break
+        prefix.append(i)
+
     def cost(indices):
         nodes = [0] + [i + 1 for i in indices]
         return sum(matrix[a][b][0] for a, b in zip(nodes, nodes[1:]))
 
     def feasible(indices):
+        if indices[:len(prefix)] != prefix:
+            return False
         seen = set()
         for i in indices:
             if stops[i]['requires'] and stops[i]['requires'] not in seen:
                 return False
             seen.add(stops[i]['key'])
         return True
+
+    # Keep several promising paths instead of committing to the nearest pickup.
+    # A collected package can therefore be dropped along the way to another pickup.
+    # Retain the original feasible route as a fallback so search cannot worsen it.
+    keys = {stop['key']: i for i, stop in enumerate(stops)}
+    prerequisites = [0 if not stop['requires'] else 1 << keys[stop['requires']] for stop in stops]
+    prefix_mask = sum(1 << i for i in prefix)
+    beam = [(prefix_mask, prefix[-1] + 1 if prefix else 0, cost(prefix), prefix)]
+    incoming = [sorted((matrix[source][target + 1][0], source) for source in range(len(stops) + 1) if source != target + 1) for target in range(len(stops))]
+
+    def bound(mask, last):
+        # Every remaining stop needs an incoming leg from the current stop or
+        # another remaining stop. Ignoring precedence/cycles gives a lower bound.
+        estimate = 0.0
+        for target in range(len(stops)):
+            if mask & (1 << target):
+                continue
+            estimate += next(seconds for seconds, source in incoming[target]
+                             if source == last or (source > 0 and not mask & (1 << (source - 1))))
+        return estimate
+
+    def delivery_positions(indices):
+        return sum(position for position, i in enumerate(indices) if stops[i].get('kind') == 'delivery' or stops[i]['requires'] is not None)
+
+    for _ in range(len(stops) - len(prefix)):
+        next_states = {}
+        for mask, last, elapsed, path in beam:
+            for i in range(len(stops)):
+                bit = 1 << i
+                if mask & bit or prerequisites[i] & mask != prerequisites[i]:
+                    continue
+                next_mask, next_last = mask | bit, i + 1
+                next_cost = elapsed + matrix[last][next_last][0]
+                next_path = path + [i]
+                state_key = (next_mask, next_last)
+                previous = next_states.get(state_key)
+                if previous is None or (next_cost, delivery_positions(next_path)) < (previous[2], delivery_positions(previous[3])):
+                    next_states[state_key] = (next_mask, next_last, next_cost, next_path)
+        beam = sorted(next_states.values(), key=lambda state: (state[2] + bound(state[0], state[1]), state[2], delivery_positions(state[3]), state[3]))[:64]
+    if beam:
+        candidate = min(beam, key=lambda state: (state[2], delivery_positions(state[3]), state[3]))[3]
+        if (cost(candidate), delivery_positions(candidate)) < (cost(route), delivery_positions(route)):
+            route = candidate
 
     # Strict improvement terminates; bounded passes keep response time predictable.
     for _ in range(len(stops)):
